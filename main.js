@@ -115,7 +115,39 @@ const CSS = String.raw`
 /* 每日小贴士 */
 .${PLUGIN_ID}-tip { background:linear-gradient(135deg,rgba(129,140,248,0.08),rgba(192,132,252,0.08)); border:1px solid rgba(129,140,248,0.15); border-radius:9px; padding:10px 14px; margin:10px 0; }
 .${PLUGIN_ID}-tip-label { font-size:0.64em; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:4px; }
-.${PLUGIN_ID}-tip-text { font-size:0.82em; color:var(--text-normal); line-height:1.5; }`;
+.${PLUGIN_ID}-tip-text { font-size:0.82em; color:var(--text-normal); line-height:1.5; }
+/* 日历看板 */
+.${PLUGIN_ID}-cal-wrap { margin:10px 0; }
+.${PLUGIN_ID}-cal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+.${PLUGIN_ID}-cal-title { font-size:0.88em; font-weight:700; color:var(--text-normal); }
+.${PLUGIN_ID}-cal-nav { display:flex; gap:4px; }
+.${PLUGIN_ID}-cal-nav-btn { width:24px; height:24px; display:flex; align-items:center; justify-content:center; border:1px solid var(--background-modifier-border); border-radius:5px; background:var(--background-secondary); color:var(--text-muted); cursor:pointer; font-size:0.85em; transition:all 0.15s; }
+.${PLUGIN_ID}-cal-nav-btn:hover { border-color:var(--interactive-accent); color:var(--interactive-accent); transform:scale(1.1); }
+.${PLUGIN_ID}-cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; transition:transform 0.3s ease, opacity 0.3s ease; }
+.${PLUGIN_ID}-cal-grid.slide-out-left { transform:translateX(-12px); opacity:0; }
+.${PLUGIN_ID}-cal-grid.slide-out-right { transform:translateX(12px); opacity:0; }
+.${PLUGIN_ID}-cal-grid.slide-in { animation:calSlideIn 0.25s ease forwards; }
+@keyframes calSlideIn { from{opacity:0;transform:translateX(12px)} to{opacity:1;transform:translateX(0)} }
+.${PLUGIN_ID}-cal-dow { text-align:center; font-size:0.6em; font-weight:600; color:var(--text-muted); padding:3px 0; text-transform:uppercase; letter-spacing:0.05em; }
+.${PLUGIN_ID}-cal-cell { display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:6px; cursor:pointer; transition:all 0.15s; font-size:0.82em; color:var(--text-muted); border:2px solid transparent; min-height:30px; padding:2px 0; position:relative; }
+.${PLUGIN_ID}-cal-cell:hover { background:var(--background-secondary) !important; border-color:var(--interactive-accent); transform:translateY(-1px); box-shadow:0 2px 6px rgba(0,0,0,0.1); }
+.${PLUGIN_ID}-cal-cell.today { font-weight:800; color:var(--interactive-accent); border-color:rgba(129,140,248,0.3); background:rgba(129,140,248,0.1); }
+.${PLUGIN_ID}-cal-cell.has-todos { color:var(--text-normal); }
+.${PLUGIN_ID}-cal-cell.selected { border-color:var(--interactive-accent); background:rgba(129,140,248,0.15); box-shadow:0 0 8px rgba(129,140,248,0.2); }
+.${PLUGIN_ID}-cal-cell.dim { opacity:0.3; pointer-events:none; }
+.${PLUGIN_ID}-cal-dots { display:flex; gap:2px; margin-top:2px; }
+.${PLUGIN_ID}-cal-dot { width:5px; height:5px; border-radius:50%; flex-shrink:0; }
+.${PLUGIN_ID}-cal-detail { background:var(--background-secondary); border:1px solid var(--background-modifier-border); border-radius:8px; padding:10px 14px; margin-top:6px; animation:calDetailIn 0.2s ease; }
+@keyframes calDetailIn { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
+.${PLUGIN_ID}-cal-detail-title { font-size:0.85em; font-weight:700; color:var(--text-normal); margin-bottom:6px; }
+.${PLUGIN_ID}-cal-detail-item { display:flex; align-items:center; gap:6px; padding:4px 0; font-size:0.78em; transition:background 0.1s; border-radius:4px; cursor:pointer; }
+.${PLUGIN_ID}-cal-detail-item:hover { background:rgba(129,140,248,0.06); }
+.${PLUGIN_ID}-cal-detail-empty { font-size:0.74em; color:var(--text-muted); text-align:center; padding:8px 0; }
+.${PLUGIN_ID}-cal-detail-check { width:16px; height:16px; border:2px solid var(--background-modifier-border); border-radius:4px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:0.6em; color:white; cursor:pointer; transition:all 0.15s; }
+.${PLUGIN_ID}-cal-detail-check:hover { border-color:#22c55e; }
+.${PLUGIN_ID}-cal-detail-check.done { background:#22c55e; border-color:#22c55e; }
+.${PLUGIN_ID}-cal-detail-text { flex:1; }
+.${PLUGIN_ID}-cal-detail-text.done { text-decoration:line-through; color:var(--text-muted); }`;
 
 const E = { wave:'👋', search:'🔍', tag:'🏷️', graph:'🕸️', bolt:'⚡', folder:'📂', rule:'📋', gear:'⚙️', robot:'🤖', box:'📦', chart:'📊', pencil:'✏️', check:'✅', save:'💾', edit:'✏️', del:'✕', cal:'📅' };
 const T = { cats:'📂 知识分类', todos:'✅ 待办事项', stats:'📊 统计进度', recent:'✏️ 最近更新' };
@@ -174,6 +206,41 @@ async function loadTodos(vault) {
     }
     return todos.length > 0 ? todos : null;
   } catch(e) { return null; }
+}
+
+// 同步 Hermes 功能待办到 Obsidian _data/todos.md
+const HERMES_TODOS = [
+  { text: '📅 日历/日程看板', done: true, tags: ['obsidian'], priority: 'high', dueDate: '2026-06-02' },
+  { text: '📌 便签/钉板（Pinned Notes）', done: false, tags: ['obsidian'], priority: 'mid', dueDate: null },
+  { text: '📊 本周统计仪表盘', done: false, tags: ['obsidian'], priority: 'mid', dueDate: null },
+  { text: '🍅 番茄钟/专注计时器', done: false, tags: ['obsidian'], priority: 'low', dueDate: null },
+];
+
+async function syncHermesTodos(vault, existingTodos) {
+  try {
+    const today = window ? window.moment().format('YYYY-MM-DD') : new Date().toISOString().slice(0,10);
+    let changed = false;
+    for (const ht of HERMES_TODOS) {
+      const exists = existingTodos.find(t => t.text === ht.text);
+      if (!exists) {
+        existingTodos.push({
+          text: ht.text,
+          tags: ht.tags,
+          priority: ht.priority,
+          dueDate: ht.dueDate ? window.moment(ht.dueDate, 'YYYY-MM-DD', true) : null,
+          done: ht.done,
+          created: window.moment(today, 'YYYY-MM-DD', true),
+          doneDate: ht.done ? window.moment(today, 'YYYY-MM-DD', true) : null,
+        });
+        changed = true;
+      } else if (exists.done !== ht.done) {
+        exists.done = ht.done;
+        exists.doneDate = ht.done ? window.moment(today, 'YYYY-MM-DD', true) : null;
+        changed = true;
+      }
+    }
+    if (changed) await saveTodos(vault, existingTodos);
+  } catch(e) { console.warn('syncHermesTodos', e); }
 }
 
 async function saveTodos(vault, todos) {
@@ -266,6 +333,9 @@ class CockpitView extends obsidian.ItemView {
     this._todos = loaded || DEFAULT_TODOS.map(t=>({...t}));
     this._bookmarks = await loadBookmarks(this.app.vault);
 
+    // 同步 Hermes 功能待办到 Obsidian
+    await syncHermesTodos(this.app.vault, this._todos);
+
     await this._buildAll(root);
 
     // 每 2 小时静默刷新一次数据（问候语、时间、统计、最近文件、待办）
@@ -298,6 +368,10 @@ class CockpitView extends obsidian.ItemView {
       el.createDiv({ cls: PLUGIN_ID+'-greeting', text: E.wave+' '+gr+'，行！' });
       el.createDiv({ cls: PLUGIN_ID+'-sub', text: '今天是 '+now.format('YYYY年M月D日 dddd')+' · 知识库已陪伴你 '+days+' 天' });
     });
+
+    // 双向同步引用
+    let refreshTodosRef = null;
+    let refreshCalendarRef = null;
 
     // ===== 1.5 每日小贴士 =====
     const tip = getDailyTip();
@@ -339,7 +413,156 @@ class CockpitView extends obsidian.ItemView {
       if (searchExpanded) searchInput.focus();
       else { searchInput.value=''; searchResults.empty(); }
     };
+      // ===== 3.5 日历看板 =====
+    (() => {
+      let calYear  = now.year();
+      let calMonth = now.month();
+      let selDay   = now.date();
+      let calRoot  = null;
+      let gridEl   = null;
+      const DOW_LABELS = ['一','二','三','四','五','六','日'];
 
+      const buildTodoMap = () => {
+        const m = {};
+        (this._todos || []).forEach(t => {
+          if (t.dueDate) {
+            const key = t.dueDate.format('YYYY-MM-DD');
+            if (!m[key]) m[key] = [];
+            m[key].push({ text: t.text, done: t.done, priority: t.priority, raw: t });
+          }
+        });
+        return m;
+      };
+
+      // 日历插入锚点：Toolbar 后面（Toolbar 在日历 IIFE 之前已渲染）
+      const ensureRoot = () => {
+        if (!calRoot || !calRoot.parentNode) {
+          calRoot = document.createElement('div');
+          calRoot.className = PLUGIN_ID + '-cal-wrap';
+          const ref = root.querySelector('.' + PLUGIN_ID + '-toolbar');
+          if (ref) ref.parentNode.insertBefore(calRoot, ref.nextSibling);
+          else root.prepend(calRoot);
+        }
+        calRoot.innerHTML = '';
+      };
+
+      const renderDetail = (tm) => {
+        const old = calRoot.parentNode.querySelector('.' + PLUGIN_ID + '-cal-detail');
+        if (old) old.remove();
+        const selDate  = window.moment([calYear, calMonth, selDay]);
+        const selKey   = selDate.format('YYYY-MM-DD');
+        const items    = tm[selKey] || [];
+        const det      = document.createElement('div');
+        det.className  = PLUGIN_ID + '-cal-detail';
+        calRoot.parentNode.insertBefore(det, calRoot.nextSibling);
+        const weekDay = ['周日','周一','周二','周三','周四','周五','周六'][selDate.day()];
+        det.createDiv({ cls: PLUGIN_ID + '-cal-detail-title',
+          text: selDate.format('M月D日') + ' ' + weekDay });
+        if (!items.length) {
+          det.createDiv({ cls: PLUGIN_ID + '-cal-detail-empty', text: '这一天没有待办 🎉' });
+        } else {
+          items.forEach(td => {
+            const item = det.createDiv({ cls: PLUGIN_ID + '-cal-detail-item' });
+            const chk  = item.createDiv({ cls: PLUGIN_ID + '-cal-detail-check' + (td.done ? ' done' : ''),
+                                         text: td.done ? '✓' : '' });
+            const span = item.createSpan({ cls: PLUGIN_ID + '-cal-detail-text' + (td.done ? ' done' : ''),
+              text: (td.done ? '🟢 ' : td.priority === 'high' ? '🔴 ' : td.priority === 'mid' ? '🟡 ' : '🟢 ') + td.text });
+            const toggle = async (e) => {
+              if (e) e.stopPropagation();
+              td.raw.done = !td.raw.done;
+              td.raw.doneDate = td.raw.done ? window.moment() : null;
+              await saveTodos(this.app.vault, this._todos);
+              renderAll();
+              if (refreshTodosRef) refreshTodosRef();
+            };
+            chk.onclick  = toggle;
+            span.onclick = toggle;
+          });
+        }
+      };
+
+      const renderAll = () => {
+        const todoMap = buildTodoMap();
+        ensureRoot();
+        const header = calRoot.createDiv({ cls: PLUGIN_ID + '-cal-header' });
+        header.createDiv({ cls: PLUGIN_ID + '-cal-title', text: calYear + '年' + (calMonth + 1) + '月' });
+        const nav = header.createDiv({ cls: PLUGIN_ID + '-cal-nav' });
+        const prevBtn  = nav.createDiv({ cls: PLUGIN_ID + '-cal-nav-btn', text: '‹' });
+        const todayBtn = nav.createDiv({ cls: PLUGIN_ID + '-cal-nav-btn', text: '●', attr:{ title:'回到今天' } });
+        const nextBtn  = nav.createDiv({ cls: PLUGIN_ID + '-cal-nav-btn', text: '›' });
+        gridEl = calRoot.createDiv({ cls: PLUGIN_ID + '-cal-grid' });
+        DOW_LABELS.forEach(d => gridEl.createDiv({ cls: PLUGIN_ID + '-cal-dow', text: d }));
+        const firstDay    = window.moment([calYear, calMonth, 1]);
+        const startDow    = firstDay.day();
+        const offset      = startDow === 0 ? 6 : startDow - 1;
+        const daysInMonth = firstDay.daysInMonth();
+        const prevDays    = window.moment([calYear, calMonth, 1]).subtract(1,'month').daysInMonth();
+        for (let i = offset - 1; i >= 0; i--)
+          gridEl.createDiv({ cls: PLUGIN_ID + '-cal-cell dim', text: String(prevDays - i) });
+        for (let d = 1; d <= daysInMonth; d++) {
+          const cellDate = window.moment([calYear, calMonth, d]);
+          const dateKey  = cellDate.format('YYYY-MM-DD');
+          const dayTodos = todoMap[dateKey] || [];
+          const isToday  = cellDate.isSame(now, 'day');
+          const isSel    = d === selDay;
+          const cls = PLUGIN_ID + '-cal-cell'
+                    + (isToday ? ' today' : '')
+                    + (dayTodos.length ? ' has-todos' : '')
+                    + (isSel   ? ' selected' : '');
+          const cell = gridEl.createDiv({ cls });
+          cell.createSpan({ text: String(d) });
+          if (dayTodos.length) {
+            const dots = cell.createDiv({ cls: PLUGIN_ID + '-cal-dots' });
+            const pc = { high:'#ef4444', mid:'#f59e0b', low:'#22c55e' };
+            dayTodos.slice(0,3).forEach(t => {
+              const color = t.done ? '#22c55e' : (pc[t.priority] || '#818cf8');
+              dots.createDiv({ cls: PLUGIN_ID+'-cal-dot', attr:{ style:'background:'+color } });
+            });
+          }
+          cell.onclick = () => { selDay = d; renderDayDetailOnly(todoMap); };
+        }
+        const total = offset + daysInMonth;
+        const needTrail = (7 - (total % 7)) % 7;
+        const fill = Math.max(0, 42 - total - needTrail) + needTrail;
+        for (let i = 1; i <= fill; i++)
+          gridEl.createDiv({ cls: PLUGIN_ID + '-cal-cell dim', text: String(i) });
+        const goMonth = (dir) => {
+          gridEl.classList.remove('slide-in');
+          gridEl.classList.add(dir > 0 ? 'slide-out-left' : 'slide-out-right');
+          setTimeout(() => {
+            calMonth += dir;
+            if (calMonth < 0)  { calMonth = 11; calYear--; }
+            if (calMonth > 11) { calMonth = 0;  calYear++; }
+            selDay = Math.min(selDay, window.moment([calYear, calMonth, 1]).daysInMonth());
+            renderAll();
+            requestAnimationFrame(() => {
+              const g = calRoot.querySelector('.' + PLUGIN_ID + '-cal-grid');
+              if (g) { g.classList.remove('slide-out-left','slide-out-right'); g.classList.add('slide-in'); }
+            });
+          }, 200);
+        };
+        prevBtn.onclick  = () => goMonth(-1);
+        nextBtn.onclick  = () => goMonth(1);
+        todayBtn.onclick = () => { calYear = now.year(); calMonth = now.month(); selDay = now.date(); renderAll(); };
+        renderDetail(todoMap);
+      };
+
+      const renderDayDetailOnly = (tm) => {
+        if (gridEl) {
+          const allCells = gridEl.querySelectorAll('.' + PLUGIN_ID + '-cal-cell');
+          let cur = 0;
+          allCells.forEach(c => {
+            if (c.classList.contains('dim')) return;
+            cur++;
+            c.classList.toggle('selected', cur === selDay);
+          });
+        }
+        renderDetail(tm);
+      };
+
+      renderAll();
+      refreshCalendarRef = renderAll;
+    })();
     // ===== 3. Categories =====
     root.createDiv({ cls: PLUGIN_ID+'-section-title', text: T.cats });
     const catsEl = root.createDiv({ cls: PLUGIN_ID+'-cats' });
@@ -365,6 +588,8 @@ class CockpitView extends obsidian.ItemView {
         if (overview) this.app.workspace.getUnpinnedLeaf().setViewState({type:'markdown',state:{file:overview.path}});
       };
     });
+
+  
 
     // ===== 4. Stats（可动态更新）=====
     root.createDiv({ cls: PLUGIN_ID+'-section-title', text: T.stats });
@@ -442,7 +667,7 @@ class CockpitView extends obsidian.ItemView {
     };
 
     // 渲染待办列表（从内存数据渲染）
-    const renderTodos = async ()=>{
+    let renderTodos = async ()=>{
       todosEl.empty();
       await saveTodos(this.app.vault, this._todos);
       updateStats();
@@ -593,6 +818,21 @@ class CockpitView extends obsidian.ItemView {
         delBtn.onclick = async (e)=>{ e.stopPropagation(); this._todos.splice(realIdx,1); await renderTodos(); };
       });
     };
+
+    // 待办变化后同步刷新日历（深度计数器避免递归重复刷新）
+    let _rtDepth = 0;
+    const _rtOrig = renderTodos;
+    renderTodos = async function() {
+      _rtDepth++;
+      try { await _rtOrig(); }
+      finally {
+        _rtDepth--;
+        if (_rtDepth === 0 && refreshCalendarRef) refreshCalendarRef();
+      }
+    };
+
+    // 日历勾选待办后同步刷新下方列表
+    refreshTodosRef = renderTodos.bind(this);
 
     // 刷新按钮：从 MD 文件重新加载数据
     refreshBtn.onclick = async ()=>{

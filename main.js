@@ -639,6 +639,15 @@ class CockpitView extends obsidian.ItemView {
     const refreshBtn = todoHeader.createEl('button', { cls: PLUGIN_ID+'-todo-add', text:'↻', attr:{title:'刷新待办'} });
     const todosEl = root.createDiv({ cls: PLUGIN_ID+'-todos' });
 
+    // 状态筛选（全部/待办/已办）
+    let currentStatus = 'all';
+    const _sw = root.createDiv({ cls: PLUGIN_ID+'-todo-tabs-wrap' });
+    const _st = _sw.createDiv({ cls: PLUGIN_ID+'-todo-tabs' });
+    [{key:'all',label:'全部'},{key:'todo',label:'待办'},{key:'done',label:'已办'}].forEach(s => {
+      const _b = _st.createEl('button', { cls: PLUGIN_ID+'-todo-tab'+(currentStatus===s.key?' active':''), text: s.label });
+      _b.onclick = async () => { currentStatus = s.key; _st.querySelectorAll('.'+PLUGIN_ID+'-todo-tab').forEach(x=>x.classList.remove('active')); _b.classList.add('active'); await renderTodos(); };
+    });
+
     // 动态收集所有标签
     let currentTag = 'all'; // 当前选中页签
     const getAllTags = ()=>{
@@ -687,10 +696,15 @@ class CockpitView extends obsidian.ItemView {
         ? this._todos
         : this._todos.filter(t => t.tags && t.tags.includes(currentTag.replace('tag:','')));
 
-      // 排序：优先级 high>mid>low，同优先级内按创建时间倒序，已过期的置顶
+      // 根据状态过滤（全部/待办/已办）
+      let statusFiltered = filtered;
+      if (currentStatus === 'todo') statusFiltered = statusFiltered.filter(t => !t.done);
+      if (currentStatus === 'done') statusFiltered = statusFiltered.filter(t => t.done);
+
+      // 排序：优先级 high>mid+low，同优先级内按创建时间倒序，已过期的置顶
       const prioOrder = { high:0, mid:1, low:2 };
       const now = window.moment();
-      filtered.sort((a,b)=>{
+      statusFiltered.sort((a,b)=>{
         // 已过期的未完成置顶
         const aOver = !a.done && a.dueDate && a.dueDate.isBefore(now, 'day') ? 0 : 1;
         const bOver = !b.done && b.dueDate && b.dueDate.isBefore(now, 'day') ? 0 : 1;
@@ -703,7 +717,7 @@ class CockpitView extends obsidian.ItemView {
         return (b.created?.valueOf()||0) - (a.created?.valueOf()||0);
       });
 
-      filtered.forEach((t,i)=>{
+      statusFiltered.forEach((t,i)=>{
         const realIdx = this._todos.indexOf(t);
         const done = t.done;
         const item = todosEl.createDiv({ cls: PLUGIN_ID+'-todo'+(done?' done':'') });

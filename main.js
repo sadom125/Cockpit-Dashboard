@@ -116,6 +116,11 @@ const CSS = String.raw`
 .${PLUGIN_ID}-tip { background:linear-gradient(135deg,rgba(129,140,248,0.08),rgba(192,132,252,0.08)); border:1px solid rgba(129,140,248,0.15); border-radius:9px; padding:10px 14px; margin:10px 0; }
 .${PLUGIN_ID}-tip-label { font-size:0.64em; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:4px; }
 .${PLUGIN_ID}-tip-text { font-size:0.82em; color:var(--text-normal); line-height:1.5; }
+/* 状态筛选 */
+.${PLUGIN_ID}-status-tabs { display:flex; gap:4px; margin:6px 0; }
+.${PLUGIN_ID}-status-btn { padding:3px 10px; border-radius:12px; border:1px solid var(--background-modifier-border); background:var(--background-secondary); color:var(--text-muted); font-size:0.72em; font-weight:500; cursor:pointer; transition:all 0.15s; }
+.${PLUGIN_ID}-status-btn:hover { border-color:var(--interactive-accent); color:var(--interactive-accent); }
+.${PLUGIN_ID}-status-btn.active { background:var(--interactive-accent); border-color:var(--interactive-accent); color:white; }
 /* 日历看板 */
 .${PLUGIN_ID}-cal-wrap { margin:10px 0; }
 .${PLUGIN_ID}-cal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
@@ -641,11 +646,10 @@ class CockpitView extends obsidian.ItemView {
 
     // 状态筛选（全部/待办/已办）
     let currentStatus = 'all';
-    const _sw = root.createDiv({ cls: PLUGIN_ID+'-todo-tabs-wrap' });
-    const _st = _sw.createDiv({ cls: PLUGIN_ID+'-todo-tabs' });
+    const _ss = root.createDiv({ cls: PLUGIN_ID+'-status-tabs' });
     [{key:'all',label:'全部'},{key:'todo',label:'待办'},{key:'done',label:'已办'}].forEach(s => {
-      const _b = _st.createEl('button', { cls: PLUGIN_ID+'-todo-tab'+(currentStatus===s.key?' active':''), text: s.label });
-      _b.onclick = async () => { currentStatus = s.key; _st.querySelectorAll('.'+PLUGIN_ID+'-todo-tab').forEach(x=>x.classList.remove('active')); _b.classList.add('active'); await renderTodos(); };
+      const _b = _ss.createEl('button', { cls: PLUGIN_ID+'-status-btn'+(currentStatus===s.key?' active':''), text: s.label });
+      _b.onclick = async () => { currentStatus = s.key; _ss.querySelectorAll('.'+PLUGIN_ID+'-status-btn').forEach(x=>x.classList.remove('active')); _b.classList.add('active'); await renderTodos(); };
     });
 
     // 动态收集所有标签

@@ -905,6 +905,11 @@ class CockpitView extends obsidian.ItemView {
     const PID = PLUGIN_ID;
     const self = this;
 
+    // 移除旧的番茄钟（防止重复创建）
+    const old = document.querySelector('.' + PID + '-pomodoro');
+    if (old) old.remove();
+    if (this._pomodoroTimer) { clearInterval(this._pomodoroTimer); this._pomodoroTimer = null; }
+
     // 创建浮动容器
     const floatEl = document.createElement('div');
     floatEl.className = PID + '-pomodoro';
@@ -913,7 +918,7 @@ class CockpitView extends obsidian.ItemView {
     // 标题栏（拖拽区域）
     const header = floatEl.createDiv({ cls: PID + '-pomo-header' });
     header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:linear-gradient(135deg,#f97316,#ef4444);cursor:move;user-select:none;';
-    header.createSpan({ text: '🍅 番茄钟', attr: { style: 'font-size:0.82em;font-weight:700;color:white;' } });
+    const titleSpan = header.createSpan({ text: '🍅 番茄钟', attr: { style: 'font-size:0.82em;font-weight:700;color:white;' } });
     const toggleBtn = header.createSpan({ text: '−', attr: { style: 'font-size:1.1em;color:white;cursor:pointer;padding:0 4px;', title: '最小化' } });
 
     // 内容区
@@ -977,7 +982,12 @@ class CockpitView extends obsidian.ItemView {
       body.style.display = minimized ? 'none' : 'block';
       toggleBtn.textContent = minimized ? '+' : '−';
       toggleBtn.title = minimized ? '展开' : '最小化';
-      floatEl.style.width = minimized ? '120px' : '180px';
+      floatEl.style.width = minimized ? '140px' : '180px';
+      if (minimized) {
+        titleSpan.textContent = '🍅 ' + fmtTime(remaining);
+      } else {
+        titleSpan.textContent = '🍅 番茄钟';
+      }
     };
 
     // 格式化时间
@@ -994,6 +1004,9 @@ class CockpitView extends obsidian.ItemView {
       progFill.style.width = pct + '%';
       todayFocus.textContent = '今日专注: ' + (self._focusMinutes || 0) + ' min';
       countEl.textContent = '🍅 × ' + pomodoroCount;
+      if (minimized) {
+        titleSpan.textContent = '🍅 ' + fmtTime(remaining);
+      }
     }
 
     // 开始/暂停

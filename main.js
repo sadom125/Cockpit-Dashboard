@@ -905,10 +905,13 @@ class CockpitView extends obsidian.ItemView {
     const PID = PLUGIN_ID;
     const self = this;
 
-    // 移除旧的番茄钟（防止重复创建）
-    const old = document.querySelector('.' + PID + '-pomodoro');
-    if (old) old.remove();
-    if (this._pomodoroTimer) { clearInterval(this._pomodoroTimer); this._pomodoroTimer = null; }
+    // 全局单例：如果已存在则复用，不重建
+    const existing = document.querySelector('.' + PID + '-pomodoro');
+    if (existing) {
+      // 只更新 _updateStatsRef，确保统计能刷新
+      this._pomodoroInstance = this._pomodoroInstance || {};
+      return;
+    }
 
     // 创建浮动容器
     const floatEl = document.createElement('div');
@@ -1235,7 +1238,9 @@ class CockpitView extends obsidian.ItemView {
   }
   async onClose() {
     if (this._refreshTimer) { clearInterval(this._refreshTimer); this._refreshTimer = null; }
-    if (this._pomodoroTimer) { clearInterval(this._pomodoroTimer); this._pomodoroTimer = null; }
+    // 番茄钟是全局单例，不随驾驶舱关闭而销毁
+    // 只清理引用，不移除 DOM
+    this._pomodoroTimer = null;
   }
 }
 

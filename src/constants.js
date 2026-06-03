@@ -30,9 +30,7 @@ const DAILY_TIPS = [
 
 const HERMES_TODOS = [
   { text: '📅 日历/日程看板', done: true, tags: ['obsidian'], priority: 'high', dueDate: '2026-06-02' },
-  { text: '📌 便签/钉板（Pinned Notes）', done: false, tags: ['obsidian'], priority: 'mid', dueDate: null },
-  { text: '📊 本周统计仪表盘', done: false, tags: ['obsidian'], priority: 'mid', dueDate: null },
-  { text: '🍅 番茄钟/专注计时器', done: false, tags: ['obsidian'], priority: 'low', dueDate: null },
+  { text: '🍅 番茄钟/专注计时器', done: true, tags: ['obsidian'], priority: 'low', dueDate: null },
 ];
 
 const DEFAULT_TODOS = [

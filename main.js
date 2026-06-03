@@ -250,7 +250,7 @@ class CockpitView extends obsidian.ItemView {
       el.onclick=()=>this._doAction(b.action);
     });
 
-    // 迷你搜索区域（默认隐藏，点击搜索按钮展开）
+    // ===== 2.5 迷你搜索区域（默认隐藏，点击搜索按钮展开） =====
     let searchExpanded = false;
     const searchWrap = root.createDiv({ cls: PLUGIN_ID+'-search-row', attr:{style:'display:none'} });
     const searchInput = searchWrap.createEl('input', { cls: PLUGIN_ID+'-search-input', attr:{placeholder:'输入关键词搜索笔记...', type:'text'} });
@@ -274,7 +274,8 @@ class CockpitView extends obsidian.ItemView {
       if (searchExpanded) searchInput.focus();
       else { searchInput.value=''; searchResults.empty(); }
     };
-      // ===== 3.5 日历看板 =====
+
+    // ===== 3.5 日历看板 =====
     (() => {
       let calYear  = now.year();
       let calMonth = now.month();
@@ -295,13 +296,13 @@ class CockpitView extends obsidian.ItemView {
         return m;
       };
 
-      // 日历插入锚点：Toolbar 后面（Toolbar 在日历 IIFE 之前已渲染）
+      // 日历插入锚点：搜索区域后面
       const ensureRoot = () => {
         if (!calRoot || !calRoot.parentNode) {
           calRoot = document.createElement('div');
           calRoot.className = PLUGIN_ID + '-cal-wrap';
-          const ref = root.querySelector('.' + PLUGIN_ID + '-toolbar');
-          if (ref) ref.parentNode.insertBefore(calRoot, ref.nextSibling);
+          const ref = root.querySelector('.' + PLUGIN_ID + '-search-results');
+          if (ref && ref.parentNode) ref.parentNode.insertBefore(calRoot, ref.nextSibling);
           else root.prepend(calRoot);
         }
         calRoot.innerHTML = '';
@@ -424,6 +425,7 @@ class CockpitView extends obsidian.ItemView {
       renderAll();
       refreshCalendarRef = renderAll;
     })();
+
     // ===== 3. Categories =====
     root.createDiv({ cls: PLUGIN_ID+'-section-title', text: T.cats });
     const catsEl = root.createDiv({ cls: PLUGIN_ID+'-cats' });

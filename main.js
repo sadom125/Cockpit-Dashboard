@@ -5,7 +5,12 @@ var obsidian = require('obsidian');
 const fs = require('fs');
 const path = require('path');
 var CSS = '';
-try { CSS = fs.readFileSync(path.join(__dirname, 'styles.css'), 'utf8'); } catch(e) { console.warn('Cockpit: styles.css not found', e); }
+function loadCss(vault) {
+  try {
+    const basePath = vault.adapter.getBasePath();
+    CSS = fs.readFileSync(path.join(basePath, '.obsidian', 'plugins', 'cockpit-dashboard', 'styles.css'), 'utf8');
+  } catch(e) { console.warn('Cockpit: styles.css not found', e); }
+}
 
 // ===== modules =====
 // ===== constants.js =====
@@ -562,6 +567,7 @@ class CockpitView extends obsidian.ItemView {
     const container = this.containerEl.children[1];
     container.empty();
     const root = container.createDiv({ cls: PLUGIN_ID + '-root' });
+    loadCss(this.app.vault);
     root.createEl('style', { text: CSS });
 
     const loaded = await loadTodos(this.app.vault);

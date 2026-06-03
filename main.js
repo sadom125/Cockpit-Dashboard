@@ -179,7 +179,7 @@ function getDailyTip() {
 }
 
 class CockpitView extends obsidian.ItemView {
-  constructor(leaf) { super(leaf); this._todos = []; this._refreshTimer = null; this._bookmarks = new Set(); this._recentEl = null; this._allFiles = []; }
+  constructor(leaf) { super(leaf); this._todos = []; this._refreshTimer = null; this._bookmarks = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._pomodoroTimer = null; }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
   getIcon() { return 'layout-dashboard'; }
@@ -196,6 +196,21 @@ class CockpitView extends obsidian.ItemView {
 
     // 同步 Hermes 功能待办到 Obsidian
     await syncHermesTodos(this.app.vault, this._todos);
+
+    // 加载今日专注时长
+    const today = window.moment().format('YYYY-MM-DD');
+    let focusData = null;
+    try {
+      const f = this.app.vault.getAbstractFileByPath('_data/focus.md');
+      if (f) {
+        const content = await this.app.vault.read(f);
+        const m = content.match(/date:\s*(\S+)\s*\nminutes:\s*(\d+)/);
+        if (m && m[1] === today) {
+          this._focusMinutes = parseInt(m[2]) || 0;
+        }
+      }
+    } catch(e) {}
+    if (!this._focusMinutes) this._focusMinutes = 0;
 
     await this._buildAll(root);
 
@@ -462,7 +477,8 @@ class CockpitView extends obsidian.ItemView {
       { label:E.pencil+' 笔记总数', max:50, color:'#818cf8', type:'static', value:noteCount },
       { label:E.check+' 待办总数', max:20, color:'#c084fc', type:'dynamic', field:'todoCount' },
       { label:E.check+' 已完成',   max:1,  color:'#22c55e', type:'dynamic', field:'doneCount' },
-      { label:E.check+' 完成率',   max:100,color:'#34d399', type:'dynamic', field:'donePct', suffix:'%' }
+      { label:E.check+' 完成率',   max:100,color:'#34d399', type:'dynamic', field:'donePct', suffix:'%' },
+      { label:'🍅 今日专注',      max:480,color:'#f97316', type:'dynamic', field:'focusMin', suffix:' min' }
     ];
     const statValEls = [], statFillEls = [];
     statConfig.forEach(cfg=>{
@@ -483,7 +499,8 @@ class CockpitView extends obsidian.ItemView {
       const doneCount = this._todos.filter(t=>t.done).length;
       const todoCount = this._todos.length;
       const donePct = todoCount > 0 ? Math.round(doneCount/todoCount*100) : 0;
-      const values = [noteCount, todoCount, doneCount, donePct];
+      const focusMin = this._focusMinutes || 0;
+      const values = [noteCount, todoCount, doneCount, donePct, focusMin];
       values.forEach((val,i)=>{
         statValEls[i].textContent = '' + val + (statConfig[i].suffix||'');
         if (statFillEls[i]) {
@@ -493,6 +510,7 @@ class CockpitView extends obsidian.ItemView {
         }
       });
     };
+    this._updateStatsRef = updateStats.bind(this);
     updateStats();
 
     // ===== 5. TODOs =====
@@ -877,9 +895,186 @@ class CockpitView extends obsidian.ItemView {
     legend.createSpan({ cls: PLUGIN_ID+'-hm-legend-label', text: '多' });
 
     root.createDiv({ cls: PLUGIN_ID+'-footer', text: E.save+' h 持续维护 · 知识库是活的' });
+
+    // ===== 番茄钟浮动组件 =====
+    this._buildPomodoro(root);
   }
 
-  // 重建最近更新区所有星星状态（收藏区取消收藏后调用，此时文件排序可能已变）
+  // ========== 番茄钟 ==========
+  _buildPomodoro(root) {
+    const PID = PLUGIN_ID;
+    const self = this;
+
+    // 创建浮动容器
+    const floatEl = document.createElement('div');
+    floatEl.className = PID + '-pomodoro';
+    floatEl.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:999;width:180px;background:var(--background-secondary);border:1px solid var(--background-modifier-border);border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,0.18);font-family:-apple-system,BlinkMacSystemFont,sans-serif;overflow:hidden;transition:box-shadow 0.2s;';
+
+    // 标题栏（拖拽区域）
+    const header = floatEl.createDiv({ cls: PID + '-pomo-header' });
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:linear-gradient(135deg,#f97316,#ef4444);cursor:move;user-select:none;';
+    header.createSpan({ text: '🍅 番茄钟', attr: { style: 'font-size:0.82em;font-weight:700;color:white;' } });
+    const toggleBtn = header.createSpan({ text: '−', attr: { style: 'font-size:1.1em;color:white;cursor:pointer;padding:0 4px;', title: '最小化' } });
+
+    // 内容区
+    const body = floatEl.createDiv({ cls: PID + '-pomo-body' });
+    body.style.cssText = 'padding:12px;text-align:center;';
+
+    // 状态文字
+    const statusEl = body.createDiv({ text: '准备开始', attr: { style: 'font-size:0.72em;color:var(--text-muted);margin-bottom:6px;' } });
+
+    // 倒计时显示
+    const timerEl = body.createDiv({ text: '25:00', attr: { style: 'font-size:2.2em;font-weight:800;color:var(--text-normal);font-variant-numeric:tabular-nums;letter-spacing:2px;' } });
+
+    // 进度条
+    const progWrap = body.createDiv({ attr: { style: 'height:4px;background:var(--background-modifier-border);border-radius:2px;margin:8px 0;overflow:hidden;' } });
+    const progFill = progWrap.createDiv({ attr: { style: 'height:100%;width:0%;background:linear-gradient(90deg,#f97316,#ef4444);border-radius:2px;transition:width 0.3s;' } });
+
+    // 按钮行
+    const btnRow = body.createDiv({ attr: { style: 'display:flex;gap:6px;justify-content:center;margin-top:4px;' } });
+    const startBtn = btnRow.createEl('button', { text: '▶ 开始', attr: { style: 'padding:5px 14px;border-radius:8px;border:1px solid var(--background-modifier-border);background:var(--interactive-accent);color:white;font-size:0.72em;font-weight:600;cursor:pointer;transition:all 0.15s;' } });
+    const resetBtn = btnRow.createEl('button', { text: '↺ 重置', attr: { style: 'padding:5px 14px;border-radius:8px;border:1px solid var(--background-modifier-border);background:var(--background-secondary);color:var(--text-muted);font-size:0.72em;font-weight:600;cursor:pointer;transition:all 0.15s;' } });
+
+    // 今日专注时长
+    const todayFocus = body.createDiv({ text: '今日专注: 0 min', attr: { style: 'font-size:0.68em;color:var(--text-muted);margin-top:8px;' } });
+
+    // 番茄计数
+    const countEl = body.createDiv({ text: '🍅 × 0', attr: { style: 'font-size:0.68em;color:var(--text-muted);margin-top:2px;' } });
+
+    document.body.appendChild(floatEl);
+
+    // 状态变量
+    let totalSeconds = 25 * 60;
+    let remaining = totalSeconds;
+    let isRunning = false;
+    let isBreak = false;
+    let pomodoroCount = 0;
+    let timerInterval = null;
+    let minimized = false;
+
+    // 拖拽
+    let dragOffsetX = 0, dragOffsetY = 0, isDragging = false;
+    header.addEventListener('mousedown', (e) => {
+      if (e.target === toggleBtn) return;
+      isDragging = true;
+      const rect = floatEl.getBoundingClientRect();
+      dragOffsetX = e.clientX - rect.left;
+      dragOffsetY = e.clientY - rect.top;
+      floatEl.style.transition = 'none';
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      floatEl.style.left = (e.clientX - dragOffsetX) + 'px';
+      floatEl.style.top = (e.clientY - dragOffsetY) + 'px';
+      floatEl.style.right = 'auto';
+      floatEl.style.bottom = 'auto';
+    });
+    document.addEventListener('mouseup', () => { isDragging = false; floatEl.style.transition = 'box-shadow 0.2s'; });
+
+    // 最小化
+    toggleBtn.onclick = () => {
+      minimized = !minimized;
+      body.style.display = minimized ? 'none' : 'block';
+      toggleBtn.textContent = minimized ? '+' : '−';
+      toggleBtn.title = minimized ? '展开' : '最小化';
+      floatEl.style.width = minimized ? '120px' : '180px';
+    };
+
+    // 格式化时间
+    function fmtTime(s) {
+      const m = Math.floor(s / 60);
+      const sec = s % 60;
+      return String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+    }
+
+    // 更新显示
+    function updateDisplay() {
+      timerEl.textContent = fmtTime(remaining);
+      const pct = ((totalSeconds - remaining) / totalSeconds) * 100;
+      progFill.style.width = pct + '%';
+      todayFocus.textContent = '今日专注: ' + (self._focusMinutes || 0) + ' min';
+      countEl.textContent = '🍅 × ' + pomodoroCount;
+    }
+
+    // 开始/暂停
+    startBtn.onclick = () => {
+      if (isRunning) {
+        // 暂停
+        clearInterval(timerInterval);
+        isRunning = false;
+        startBtn.textContent = '▶ 继续';
+        statusEl.textContent = isBreak ? '休息暂停' : '专注暂停';
+        statusEl.style.color = '#f59e0b';
+      } else {
+        // 开始
+        isRunning = true;
+        startBtn.textContent = '⏸ 暂停';
+        statusEl.textContent = isBreak ? '休息中...' : '专注中...';
+        statusEl.style.color = isBreak ? '#22c55e' : '#ef4444';
+        timerInterval = setInterval(() => {
+          remaining--;
+          updateDisplay();
+          if (remaining <= 0) {
+            clearInterval(timerInterval);
+            isRunning = false;
+            if (!isBreak) {
+              // 专注完成
+              pomodoroCount++;
+              self._focusMinutes = (self._focusMinutes || 0) + 25;
+              // 持久化到文件
+              (async () => {
+                try {
+                  const today = window.moment().format('YYYY-MM-DD');
+                  const content = '# 专注记录\n\ndate: ' + today + '\nminutes: ' + self._focusMinutes + '\n';
+                  const dir = '_data';
+                  if (!self.app.vault.getAbstractFileByPath(dir)) await self.app.vault.createFolder(dir);
+                  const f = self.app.vault.getAbstractFileByPath('_data/focus.md');
+                  if (f) await self.app.vault.modify(f, content);
+                  else await self.app.vault.create('_data/focus.md', content);
+                } catch(e) { console.warn('save focus', e); }
+              })();
+              statusEl.textContent = '✅ 完成一个番茄！';
+              statusEl.style.color = '#22c55e';
+              startBtn.textContent = '▶ 开始休息';
+              isBreak = true;
+              totalSeconds = 5 * 60;
+              remaining = totalSeconds;
+              // 刷新统计
+              if (self._updateStatsRef) self._updateStatsRef();
+            } else {
+              // 休息完成
+              statusEl.textContent = '休息结束';
+              statusEl.style.color = 'var(--text-muted)';
+              startBtn.textContent = '▶ 开始';
+              isBreak = false;
+              totalSeconds = 25 * 60;
+              remaining = totalSeconds;
+            }
+            updateDisplay();
+          }
+        }, 1000);
+      }
+    };
+
+    // 重置
+    resetBtn.onclick = () => {
+      clearInterval(timerInterval);
+      isRunning = false;
+      isBreak = false;
+      totalSeconds = 25 * 60;
+      remaining = totalSeconds;
+      startBtn.textContent = '▶ 开始';
+      statusEl.textContent = '准备开始';
+      statusEl.style.color = 'var(--text-muted)';
+      updateDisplay();
+    };
+
+    // 保存引用
+    this._pomodoroTimer = timerInterval;
+    this._updateStatsRef = null; // 将在 _buildAll 中设置
+
+    updateDisplay();
+  }
   _rebuildRecentStars() {
     const recentEl = this._recentEl;
     if (!recentEl) return;
@@ -1025,7 +1220,10 @@ class CockpitView extends obsidian.ItemView {
       case 'command': this.app.commands.executeCommandById('command-palette:open'); break;
     }
   }
-  async onClose() { if (this._refreshTimer) { clearInterval(this._refreshTimer); this._refreshTimer = null; } }
+  async onClose() {
+    if (this._refreshTimer) { clearInterval(this._refreshTimer); this._refreshTimer = null; }
+    if (this._pomodoroTimer) { clearInterval(this._pomodoroTimer); this._pomodoroTimer = null; }
+  }
 }
 
 class CockpitPlugin extends obsidian.Plugin {

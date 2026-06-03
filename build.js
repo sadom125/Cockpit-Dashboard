@@ -16,7 +16,6 @@ const MODULES = [
   'utils.js',       // fmtDate, parseDate, extractTags
   'todos.js',       // loadTodos, saveTodos, syncHermesTodos
   'bookmarks.js',   // loadBookmarks, saveBookmarks
-  'daily-tips.js',  // getDailyTip
   'calendar.js',    // buildCalendar(root, todos, opts) → renderAll function
   'search.js',      // buildSearch(root, toolbar, allFiles, app)
   'pomodoro.js',    // buildPomodoro(view, root)

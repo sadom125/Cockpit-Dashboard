@@ -78,7 +78,7 @@ class CockpitView extends obsidian.ItemView {
 
     // ===== 2. Toolbar =====
     const toolbar = root.createDiv({ cls: PLUGIN_ID+'-toolbar' });
-    [{icon:'+',label:'新建笔记',action:'new',primary:true},{icon:E.search,label:'搜索',action:'search'},{icon:E.tag,label:'标签',action:'tag'},{icon:E.graph,label:'图谱',action:'graph'},{icon:E.bolt,label:'命令',action:'command'},{icon:'🤖',label:'Hermes',action:'hermes'}].forEach(b=>{
+    [{icon:'+',label:'新建笔记',action:'new',primary:true},{icon:E.search,label:'搜索',action:'search'},{icon:E.tag,label:'标签',action:'tag'},{icon:E.graph,label:'图谱',action:'graph'},{icon:E.bolt,label:'命令',action:'command'},{icon:'🤖',label:'Hermes',action:'hermes'},{icon:'🛩️',label:'驾驶舱',action:'cockpit-h5'}].forEach(b=>{
       const el=toolbar.createEl('button',{cls:PLUGIN_ID+'-toolbtn'+(b.primary?' primary':'')});
       el.createSpan({cls:PLUGIN_ID+'-icon',text:b.icon});
       el.createSpan({text:b.label});
@@ -1045,6 +1045,25 @@ class CockpitView extends obsidian.ItemView {
         }, 300);
       } catch(e) {
         console.warn('Hermes failed', e);
+      }
+      return;
+    }
+    if (a === 'cockpit-h5') {
+      try {
+        const { exec } = require('child_process');
+        const homedir = require('os').homedir();
+        const serverDir = require('path').join(homedir, 'Downloads', 'cockpit');
+        exec('cd ' + serverDir + ' && node server.js', (err) => {
+          if (err && !err.message.includes('EADDRINUSE')) {
+            console.warn('Cockpit H5 启动失败', err);
+            new obsidian.Notice('🛩️ 驾驶舱启动失败: ' + err.message);
+            return;
+          }
+        });
+        setTimeout(() => { exec('open http://localhost:3456'); }, 1000);
+        new obsidian.Notice('🛩️ 驾驶舱正在启动…');
+      } catch(e) {
+        console.warn('Cockpit H5 launch failed', e);
       }
       return;
     }

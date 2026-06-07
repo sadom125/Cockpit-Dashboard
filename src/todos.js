@@ -51,6 +51,7 @@ async function syncHermesTodos(vault, existingTodos) {
     for (const ht of HERMES_TODOS) {
       const exists = existingTodos.find(t => t.text === ht.text);
       if (!exists) {
+        // 只在文件里不存在时才新增，以 HERMES_TODOS 的值为准
         existingTodos.push({
           text: ht.text, tags: ht.tags, priority: ht.priority,
           dueDate: ht.dueDate ? window.moment(ht.dueDate, 'YYYY-MM-DD', true) : null,
@@ -59,11 +60,8 @@ async function syncHermesTodos(vault, existingTodos) {
           doneDate: ht.done ? window.moment(today, 'YYYY-MM-DD', true) : null,
         });
         changed = true;
-      } else if (exists.done !== ht.done) {
-        exists.done = ht.done;
-        exists.doneDate = ht.done ? window.moment(today, 'YYYY-MM-DD', true) : null;
-        changed = true;
       }
+      // 文件里已有的条目，以文件为准，不覆盖用户的修改
     }
     if (changed) await saveTodos(vault, existingTodos);
   } catch(e) { console.warn('syncHermesTodos', e); }

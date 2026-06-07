@@ -46,9 +46,7 @@ const DAILY_TIPS = [
 
 const HERMES_TODOS = [
   { text: '📅 日历/日程看板', done: true, tags: ['obsidian'], priority: 'high', dueDate: '2026-06-02' },
-  { text: '📌 便签/钉板（Pinned Notes）', done: false, tags: ['obsidian'], priority: 'mid', dueDate: null },
-  { text: '📊 本周统计仪表盘', done: false, tags: ['obsidian'], priority: 'mid', dueDate: null },
-  { text: '🍅 番茄钟/专注计时器', done: false, tags: ['obsidian'], priority: 'low', dueDate: null },
+  { text: '🍅 番茄钟/专注计时器', done: true, tags: ['obsidian'], priority: 'low', dueDate: null },
 ];
 
 const DEFAULT_TODOS = [
@@ -150,6 +148,7 @@ async function syncHermesTodos(vault, existingTodos) {
     for (const ht of HERMES_TODOS) {
       const exists = existingTodos.find(t => t.text === ht.text);
       if (!exists) {
+        // 只在文件里不存在时才新增，以 HERMES_TODOS 的值为准
         existingTodos.push({
           text: ht.text, tags: ht.tags, priority: ht.priority,
           dueDate: ht.dueDate ? window.moment(ht.dueDate, 'YYYY-MM-DD', true) : null,
@@ -158,11 +157,8 @@ async function syncHermesTodos(vault, existingTodos) {
           doneDate: ht.done ? window.moment(today, 'YYYY-MM-DD', true) : null,
         });
         changed = true;
-      } else if (exists.done !== ht.done) {
-        exists.done = ht.done;
-        exists.doneDate = ht.done ? window.moment(today, 'YYYY-MM-DD', true) : null;
-        changed = true;
       }
+      // 文件里已有的条目，以文件为准，不覆盖用户的修改
     }
     if (changed) await saveTodos(vault, existingTodos);
   } catch(e) { console.warn('syncHermesTodos', e); }
@@ -538,7 +534,8 @@ class CockpitView extends obsidian.ItemView {
      { icon: E.tag, label: '标签', action: 'tag' },
      { icon: E.graph, label: '图谱', action: 'graph' },
      { icon: E.bolt, label: '命令', action: 'command' },
-     { icon: '🤖', label: 'Hermes', action: 'hermes' }
+     { icon: '🤖', label: 'Hermes', action: 'hermes' },
+     { icon: '🛩️', label: '驾驶舱', action: 'cockpit-h5' }
     ].forEach(b => {
       const el = toolbar.createEl('button', { cls: PLUGIN_ID + '-toolbtn' + (b.primary ? ' primary' : '') });
       el.createSpan({ cls: PLUGIN_ID + '-icon', text: b.icon });
@@ -772,7 +769,7 @@ class CockpitView extends obsidian.ItemView {
 
   async _refreshBookmarkSection(root, allFiles) { let bt = null, be = null; root.querySelectorAll('.' + PLUGIN_ID + '-section-title').forEach(el => { if (el.textContent.includes('收藏文件')) bt = el; }); if (bt) be = bt.nextElementSibling; if (this._bookmarks.size === 0) { if (bt) bt.remove(); if (be) be.remove(); return; } if (!be || !be.classList.contains(PLUGIN_ID + '-recent')) { if (bt) bt.remove(); if (be) be.remove(); bt = root.createDiv({ cls: PLUGIN_ID + '-section-title', text: '⭐ 收藏文件' }); be = root.createDiv({ cls: PLUGIN_ID + '-recent' }); let rt = null; root.querySelectorAll('.' + PLUGIN_ID + '-section-title').forEach(el => { if (el.textContent.includes('最近更新')) rt = el; }); if (rt && rt.nextElementSibling) { rt.nextElementSibling.after(be); be.before(bt); } } be.innerHTML = ''; let hv = false; for (const path of this._bookmarks) { const f = allFiles.find(ff => ff.path === path); if (!f) { this._bookmarks.delete(path); continue; } hv = true; const item = be.createDiv({ cls: PLUGIN_ID + '-recent-item' }); const sb = item.createSpan({ cls: PLUGIN_ID + '-bookmark-btn starred', text: '★', attr: { title: '取消收藏' } }); sb.onclick = async (e) => { e.stopPropagation(); this._bookmarks.delete(path); await saveBookmarks(this.app.vault, this._bookmarks); await this._refreshBookmarkSection(root, allFiles); this._rebuildRecentStars(); }; const link = item.createEl('a', { cls: PLUGIN_ID + '-recent-link', text: f.basename, href: '#' }); link.onclick = e => { e.preventDefault(); this.app.workspace.getUnpinnedLeaf().setViewState({ type: 'markdown', state: { file: f.path } }); }; item.createDiv({ cls: PLUGIN_ID + '-recent-time', text: f.path }); } if (!hv) { bt.remove(); be.remove(); } }
 
-  _doAction(a) { if (a === 'hermes') { try { this.app.commands.executeCommandById('terminal:open-terminal.integrated.root'); const tryInject = () => { const tl = this.app.workspace.getLeavesOfType('terminal'); if (tl.length === 0) return false; const tv = tl[tl.length - 1]?.view; if (!tv) return false; let x = null; for (const k of Object.getOwnPropertyNames(tv)) { const v = tv[k]; if (v && v._core && v._core._coreService) { x = v; break; } } if (!x && tv._children) { for (const c of tv._children) { if (c._core && c._core._coreService) { x = c; break; } if (c._children) { for (const c2 of c._children) { if (c2._core && c2._core._coreService) { x = c2; break; } } } for (const k of Object.getOwnPropertyNames(c)) { const v = c[k]; if (v && v._core && v._core._coreService) { x = v; break; } } } } if (x) { x.write('hermes --tui\r'); return true; } return false; }; let attempts = 0; const timer = setInterval(() => { attempts++; if (tryInject() || attempts > 30) clearInterval(timer); }, 300); } catch (e) { console.warn('Hermes failed', e); } return; } switch (a) { case 'new': this.app.commands.executeCommandById('file-explorer:new-file'); break; case 'search': break; case 'tag': this.app.workspace.rightSplit.expand(); break; case 'graph': this.app.commands.executeCommandById('graph:open'); break; case 'command': this.app.commands.executeCommandById('command-palette:open'); break; } }
+  _doAction(a) { if (a === 'hermes') { try { this.app.commands.executeCommandById('terminal:open-terminal.integrated.root'); const tryInject = () => { const tl = this.app.workspace.getLeavesOfType('terminal'); if (tl.length === 0) return false; const tv = tl[tl.length - 1]?.view; if (!tv) return false; let x = null; for (const k of Object.getOwnPropertyNames(tv)) { const v = tv[k]; if (v && v._core && v._core._coreService) { x = v; break; } } if (!x && tv._children) { for (const c of tv._children) { if (c._core && c._core._coreService) { x = c; break; } if (c._children) { for (const c2 of c._children) { if (c2._core && c2._core._coreService) { x = c2; break; } } } for (const k of Object.getOwnPropertyNames(c)) { const v = c[k]; if (v && v._core && v._core._coreService) { x = v; break; } } } } if (x) { x.write('hermes --tui\r'); return true; } return false; }; let attempts = 0; const timer = setInterval(() => { attempts++; if (tryInject() || attempts > 30) clearInterval(timer); }, 300); } catch (e) { console.warn('Hermes failed', e); } return; } if (a === 'cockpit-h5') { try { const { exec } = require('child_process'); const serverDir = require('path').join(require('os').homedir(), 'Downloads', 'cockpit'); exec('cd ' + serverDir + ' && node server.js', (err) => { if (err && !err.message.includes('EADDRINUSE')) { console.warn('Cockpit H5 启动失败', err); new obsidian.Notice('🛩️ 驾驶舱启动失败: ' + err.message); return; } }); setTimeout(() => { exec('open http://localhost:3456'); }, 1000); new obsidian.Notice('🛩️ 驾驶舱正在启动…'); } catch (e) { console.warn('Cockpit H5 launch failed', e); } return; } switch (a) { case 'new': this.app.commands.executeCommandById('file-explorer:new-file'); break; case 'search': break; case 'tag': this.app.workspace.rightSplit.expand(); break; case 'graph': this.app.commands.executeCommandById('graph:open'); break; case 'command': this.app.commands.executeCommandById('command-palette:open'); break; } }
 
   async onClose() { if (this._refreshTimer) { clearInterval(this._refreshTimer); this._refreshTimer = null; } this._pomodoroTimer = null; }
 }

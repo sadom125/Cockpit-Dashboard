@@ -1052,8 +1052,9 @@ class CockpitView extends obsidian.ItemView {
       try {
         const { exec } = require('child_process');
         const homedir = require('os').homedir();
+        const nodeBin = homedir + '/.local/bin/node';
         const serverDir = require('path').join(homedir, 'Downloads', 'cockpit');
-        exec('cd ' + serverDir + ' && node server.js', (err) => {
+        exec('cd ' + serverDir + ' && ' + nodeBin + ' server.js', (err) => {
           if (err && !err.message.includes('EADDRINUSE')) {
             console.warn('Cockpit H5 启动失败', err);
             new obsidian.Notice('🛩️ 驾驶舱启动失败: ' + err.message);

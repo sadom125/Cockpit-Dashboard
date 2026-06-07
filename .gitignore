@@ -1,0 +1,5 @@
+.DS_Store
+.codegraph/
+.reasonix/
+claude.md
+*.backup-*

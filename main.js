@@ -474,11 +474,13 @@ class CockpitView extends obsidian.ItemView {
 
     await syncHermesTodos(this.app.vault, this._todos);
 
-    // 加载用户自定义名称
+    // 加载用户自定义名称 + 初始化首次使用日期
     try {
-      const pluginData = await this._plugin.loadData();
+      const pluginData = await this._plugin.loadData() || {};
       this._username = pluginData?.username || '行';
-    } catch(e) { this._username = '行'; }
+      if (!pluginData.startDate) { pluginData.startDate = window.moment().format('YYYY-MM-DD'); await this._plugin.saveData(pluginData); }
+      this._startDate = pluginData.startDate;
+    } catch(e) { this._username = '行'; this._startDate = window.moment().format('YYYY-MM-DD'); }
 
     // 加载今日专注时长
     const today = window.moment().format('YYYY-MM-DD');
@@ -515,7 +517,7 @@ class CockpitView extends obsidian.ItemView {
     else if (hr >= 14 && hr < 18) gr = '下午好';
     else if (hr >= 18 && hr < 22) gr = '晚上好';
     else if (hr >= 22 || hr < 6) gr = '夜深了';
-    const days = Math.max(0, now.diff(window.moment('2026-05-30'), 'days'));
+    const days = Math.max(0, now.diff(window.moment(this._startDate), 'days'));
     const allFiles = this.app.vault.getMarkdownFiles();
 
     // 1. Hero — 三行结构

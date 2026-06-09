@@ -139,14 +139,49 @@ class CockpitView extends obsidian.ItemView {
     const allFiles = this.app.vault.getMarkdownFiles();
 
     // 1. Hero — 三行结构
-    const urgentTodos = this._todos.filter(t => t.priority === 'high' && !t.done);
     root.createDiv({ cls: PLUGIN_ID + '-hero' }, el => {
-      el.createDiv({ cls: PLUGIN_ID + '-greeting', text: E.wave + ' ' + gr + '，' + this._username + '！' });
-      let subText = '今天是 ' + now.format('YYYY年M月D日 dddd');
-      if (urgentTodos.length > 0) subText += ' · 您有 ' + urgentTodos.length + ' 件🔴待办，记得及时处理';
-      el.createDiv({ cls: PLUGIN_ID + '-sub', text: subText });
+      const greetLine = el.createDiv({ cls: PLUGIN_ID + '-greeting' });
+      greetLine.createSpan({ text: E.wave + ' ' + gr + '，' });
+      const nameSpan = greetLine.createSpan({ cls: PLUGIN_ID + '-name', text: this._username });
+      const editIcon = greetLine.createSpan({ cls: PLUGIN_ID + '-name-edit', text: '✏️', attr: { title: '点击修改名称' } });
+      editIcon.onclick = (e) => {
+        e.stopPropagation();
+        const inp = document.createElement('input');
+        inp.className = PLUGIN_ID + '-name-input';
+        inp.type = 'text';
+        inp.value = this._username;
+        nameSpan.replaceWith(inp);
+        inp.focus();
+        inp.select();
+        const save = async () => {
+          const v = inp.value.trim() || '行';
+          this._username = v;
+          try { const d = await this._plugin.loadData() || {}; d.username = v; await this._plugin.saveData(d); } catch(e) { console.warn('Cockpit: save username failed', e); }
+          const ns = greetLine.createSpan({ cls: PLUGIN_ID + '-name', text: v });
+          inp.replaceWith(ns);
+        };
+        inp.addEventListener('keydown', ke => { if (ke.key === 'Enter') { ke.preventDefault(); save(); } if (ke.key === 'Escape') { ke.preventDefault(); const ns = greetLine.createSpan({ cls: PLUGIN_ID + '-name', text: this._username }); inp.replaceWith(ns); } });
+        inp.addEventListener('blur', save);
+      };
+      greetLine.createSpan({ text: '！' });
+      const todayStr = now.format('YYYY年M月D日 dddd');
+      const dueTodos = this._todos.filter(t => !t.done && t.dueDate && (t.dueDate.isBefore(now.clone().add(1, 'day'), 'day') || t.dueDate.isSame(now.clone().add(1, 'day'), 'day')));
+      const dueIcon = dueTodos.some(t => t.priority === 'high') ? '🔴' : dueTodos.some(t => t.priority === 'mid') ? '🟡' : '🟢';
+      let heroSubText = '今天是 ' + todayStr;
+      if (dueTodos.length > 0) heroSubText += ' · 您有 ' + dueTodos.length + ' 件' + dueIcon + '截止待办';
+      el.createDiv({ cls: PLUGIN_ID + '-sub', text: heroSubText });
       el.createDiv({ cls: PLUGIN_ID + '-sub', text: '• 知识库已陪伴你 ' + days + ' 天' });
     });
+
+    this._refreshHeroReminder = () => {
+      const nM = window.moment();
+      const due = this._todos.filter(t => !t.done && t.dueDate && (t.dueDate.isBefore(nM.clone().add(1, 'day'), 'day') || t.dueDate.isSame(nM.clone().add(1, 'day'), 'day')));
+      const dIcon = due.some(t => t.priority === 'high') ? '🔴' : due.some(t => t.priority === 'mid') ? '🟡' : '🟢';
+      let txt = '今天是 ' + nM.format('YYYY年M月D日 dddd');
+      if (due.length > 0) txt += ' · 您有 ' + due.length + ' 件' + dIcon + '截止待办';
+      const subs = root.querySelectorAll('.' + PLUGIN_ID + '-sub');
+      if (subs.length > 0) subs[0].textContent = txt;
+    };
 
     let refreshTodosRef = null;
     let refreshCalendarRef = null;
@@ -329,7 +364,7 @@ class CockpitView extends obsidian.ItemView {
     };
     let _rtDepth = 0;
     const _rtOrig = renderTodos;
-    renderTodos = async function () { _rtDepth++; try { await _rtOrig(); } finally { _rtDepth--; if (_rtDepth === 0 && refreshCalendarRef) refreshCalendarRef(); } };
+    renderTodos = async function () { _rtDepth++; try { await _rtOrig(); } finally { _rtDepth--; if (_rtDepth === 0) { if (refreshCalendarRef) refreshCalendarRef(); if (this._refreshHeroReminder) this._refreshHeroReminder(); } } };
     refreshTodosRef = renderTodos.bind(this);
     refreshBtn.onclick = async () => { const l = await loadTodos(this.app.vault); if (l) this._todos = l; await renderTodos(); };
     addBtn.onclick = async () => {

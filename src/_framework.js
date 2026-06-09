@@ -1,5 +1,5 @@
 class CockpitView extends obsidian.ItemView {
-  constructor(leaf) { super(leaf); this._todos = []; this._refreshTimer = null; this._bookmarks = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._pomodoroTimer = null; }
+  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._todos = []; this._refreshTimer = null; this._bookmarks = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._pomodoroTimer = null; this._username = '行'; }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
   getIcon() { return 'layout-dashboard'; }
@@ -16,6 +16,12 @@ class CockpitView extends obsidian.ItemView {
 
     // 同步 Hermes 功能待办到 Obsidian
     await syncHermesTodos(this.app.vault, this._todos);
+
+    // 加载用户自定义名称
+    try {
+      const pluginData = await this._plugin.loadData();
+      this._username = pluginData?.username || '行';
+    } catch(e) { this._username = '行'; }
 
     // 加载今日专注时长
     const today = window.moment().format('YYYY-MM-DD');
@@ -59,10 +65,12 @@ class CockpitView extends obsidian.ItemView {
     const days = Math.max(0, now.diff(window.moment('2026-05-30'), 'days'));
     const allFiles = this.app.vault.getMarkdownFiles();
 
-    // ===== 1. Hero =====
+    // ===== 1. Hero — 三行结构 =====
+    const urgentCount = this._todos.filter(t => t.priority === 'high' && !t.done).length;
     root.createDiv({ cls: PLUGIN_ID+'-hero' }, el => {
-      el.createDiv({ cls: PLUGIN_ID+'-greeting', text: E.wave+' '+gr+'，行！' });
-      el.createDiv({ cls: PLUGIN_ID+'-sub', text: '今天是 '+now.format('YYYY年M月D日 dddd')+' · 知识库已陪伴你 '+days+' 天' });
+      el.createDiv({ cls: PLUGIN_ID+'-greeting', text: E.wave+' '+gr+'，'+this._username+'！' });
+      el.createDiv({ cls: PLUGIN_ID+'-sub', text: '今天是 '+now.format('YYYY年M月D日 dddd')+' · 您有 '+urgentCount+' 件紧急待办，记得及时处理' });
+      el.createDiv({ cls: PLUGIN_ID+'-sub', text: '• 知识库已陪伴你 '+days+' 天' });
     });
 
     // 双向同步引用
@@ -1086,7 +1094,7 @@ class CockpitView extends obsidian.ItemView {
 
 class CockpitPlugin extends obsidian.Plugin {
   async onload() {
-    this.registerView(VIEW_TYPE, l=>new CockpitView(l));
+    this.registerView(VIEW_TYPE, l=>new CockpitView(l, this));
     this.addRibbonIcon('layout-dashboard','Cockpit',()=>this._open());
     this.addCommand({id:'open-cockpit',name:'打开 Cockpit 驾驶舱',callback:()=>this._open()});
     this.app.workspace.onLayoutReady(()=>this._open());

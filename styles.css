@@ -448,6 +448,4 @@
 .cockpit-dashboard-greeting { position:relative; }
 .cockpit-dashboard-name { cursor:pointer; }
 .cockpit-dashboard-name:hover { opacity:0.85; }
-.cockpit-dashboard-name-edit { font-size:0.5em; cursor:pointer; margin-left:2px; opacity:0.3; vertical-align:super; transition:opacity 0.15s; -webkit-text-fill-color:rgba(255,255,255,0.5); }
-.cockpit-dashboard-name-edit:hover { opacity:1; -webkit-text-fill-color:white; }
 .cockpit-dashboard-name-input { font-size:0.7em; font-weight:800; font-family:inherit; background:transparent; border:none; border-bottom:2px solid var(--cockpit-accent); color:var(--text-normal); outline:none; padding:0 2px; width:auto; min-width:3em; -webkit-text-fill-color:var(--text-normal); }

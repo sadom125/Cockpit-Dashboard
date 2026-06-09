@@ -69,27 +69,31 @@ class CockpitView extends obsidian.ItemView {
     root.createDiv({ cls: PLUGIN_ID+'-hero' }, el => {
       const greetLine = el.createDiv({ cls: PLUGIN_ID+'-greeting' });
       greetLine.createSpan({ text: E.wave+' '+gr+'，' });
-      const nameSpan = greetLine.createSpan({ cls: PLUGIN_ID+'-name', text: this._username });
-      const editIcon = greetLine.createSpan({ cls: PLUGIN_ID+'-name-edit', text: '✏️', attr: { title:'点击修改名称' } });
-      editIcon.onclick = (e) => {
-        e.stopPropagation();
+      let currNameSpan = greetLine.createSpan({ cls: PLUGIN_ID+'-name', text: this._username });
+      const startEdit = (span) => {
         const inp = document.createElement('input');
         inp.className = PLUGIN_ID+'-name-input';
         inp.type = 'text';
         inp.value = this._username;
-        nameSpan.replaceWith(inp);
+        span.replaceWith(inp);
         inp.focus();
         inp.select();
-        const save = async () => {
+        let saved = false;
+        const finish = async (cancel) => {
+          if (saved) return;
+          saved = true;
+          if (cancel) { const ns = greetLine.createSpan({ cls: PLUGIN_ID+'-name', text: this._username }); inp.replaceWith(ns); ns.onclick = () => startEdit(ns); return; }
           const v = inp.value.trim() || '行';
           this._username = v;
           try { const d = await this._plugin.loadData() || {}; d.username = v; await this._plugin.saveData(d); } catch(e) { console.warn('Cockpit: save username failed', e); }
           const ns = greetLine.createSpan({ cls: PLUGIN_ID+'-name', text: v });
           inp.replaceWith(ns);
+          ns.onclick = () => startEdit(ns);
         };
-        inp.addEventListener('keydown', ke => { if (ke.key === 'Enter') { ke.preventDefault(); save(); } if (ke.key === 'Escape') { ke.preventDefault(); const ns = greetLine.createSpan({ cls: PLUGIN_ID+'-name', text: this._username }); inp.replaceWith(ns); } });
-        inp.addEventListener('blur', save);
+        inp.addEventListener('keydown', ke => { if (ke.key === 'Enter') { ke.preventDefault(); finish(false); } if (ke.key === 'Escape') { ke.preventDefault(); finish(true); } });
+        inp.addEventListener('blur', () => finish(false));
       };
+      currNameSpan.onclick = () => startEdit(currNameSpan);
       greetLine.createSpan({ text: '！' });
       const todayStr = now.format('YYYY年M月D日 dddd');
       const dueTodos = this._todos.filter(t => !t.done && t.dueDate && (t.dueDate.isBefore(now.clone().add(1,'day'),'day') || t.dueDate.isSame(now.clone().add(1,'day'),'day')));
@@ -521,8 +525,13 @@ class CockpitView extends obsidian.ItemView {
           dot.title = p==='high'?'高优先级':p==='mid'?'中优先级':'低优先级';
           dot.onclick = async (e)=>{
             e.stopPropagation();
+            if ((t.priority||'mid') === p) return;
             this._todos[realIdx].priority = p;
-            await renderTodos();
+            prioWrap.querySelectorAll('.'+PLUGIN_ID+'-prio-opt').forEach(x => x.classList.remove('sel'));
+            dot.classList.add('sel');
+            item.querySelector('.'+PLUGIN_ID+'-todo-pdot').className = PLUGIN_ID+'-todo-pdot p-'+p;
+            await saveTodos(this.app.vault, this._todos);
+            if (this._refreshHeroReminder) this._refreshHeroReminder();
           };
         });
 
@@ -579,6 +588,7 @@ class CockpitView extends obsidian.ItemView {
     // 待办变化后同步刷新日历（深度计数器避免递归重复刷新）
     let _rtDepth = 0;
     const _rtOrig = renderTodos;
+    const _refreshHero = this._refreshHeroReminder;
     renderTodos = async function() {
       _rtDepth++;
       try { await _rtOrig(); }
@@ -586,7 +596,7 @@ class CockpitView extends obsidian.ItemView {
         _rtDepth--;
         if (_rtDepth === 0) {
           if (refreshCalendarRef) refreshCalendarRef();
-          if (this._refreshHeroReminder) this._refreshHeroReminder();
+          if (_refreshHero) _refreshHero();
         }
       }
     };

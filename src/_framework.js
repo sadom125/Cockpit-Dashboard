@@ -1130,8 +1130,9 @@ class CockpitView extends obsidian.ItemView {
       try {
         const { exec } = require('child_process');
         const pyBin = '/Library/Frameworks/Python.framework/Versions/3.13/bin/python3';
-        const scriptPath = require('path').join(__dirname, 'oaAtuoLogin_obsidian.py');
-        exec(pyBin + ' ' + scriptPath, (err, stdout, stderr) => {
+        const vaultBase = this.app.vault.adapter.getBasePath();
+        const scriptPath = require('path').join(vaultBase, '.obsidian', 'plugins', 'cockpit-dashboard', 'oaAtuoLogin_obsidian.py');
+        exec(pyBin + ' "' + scriptPath + '"', (err, stdout, stderr) => {
           if (err) {
             console.warn('工作日志执行失败', err);
             new obsidian.Notice('📝 工作日志执行失败: ' + err.message);

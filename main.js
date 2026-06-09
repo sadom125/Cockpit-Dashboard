@@ -519,10 +519,12 @@ class CockpitView extends obsidian.ItemView {
     const allFiles = this.app.vault.getMarkdownFiles();
 
     // 1. Hero — 三行结构
-    const urgentCount = this._todos.filter(t => t.priority === 'high' && !t.done).length;
+    const urgentTodos = this._todos.filter(t => t.priority === 'high' && !t.done);
     root.createDiv({ cls: PLUGIN_ID + '-hero' }, el => {
       el.createDiv({ cls: PLUGIN_ID + '-greeting', text: E.wave + ' ' + gr + '，' + this._username + '！' });
-      el.createDiv({ cls: PLUGIN_ID + '-sub', text: '今天是 ' + now.format('YYYY年M月D日 dddd') + ' · 您有 ' + urgentCount + ' 件紧急待办，记得及时处理' });
+      let subText = '今天是 ' + now.format('YYYY年M月D日 dddd');
+      if (urgentTodos.length > 0) subText += ' · 您有 ' + urgentTodos.length + ' 件🔴待办，记得及时处理';
+      el.createDiv({ cls: PLUGIN_ID + '-sub', text: subText });
       el.createDiv({ cls: PLUGIN_ID + '-sub', text: '• 知识库已陪伴你 ' + days + ' 天' });
     });
 

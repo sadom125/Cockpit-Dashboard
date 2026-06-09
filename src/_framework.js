@@ -127,7 +127,7 @@ class CockpitView extends obsidian.ItemView {
 
     // ===== 2. Toolbar =====
     const toolbar = root.createDiv({ cls: PLUGIN_ID+'-toolbar' });
-    [{icon:'+',label:'新建笔记',action:'new',primary:true},{icon:E.search,label:'搜索',action:'search'},{icon:E.tag,label:'标签',action:'tag'},{icon:E.graph,label:'图谱',action:'graph'},{icon:E.bolt,label:'命令',action:'command'},{icon:'🤖',label:'Hermes',action:'hermes'},{icon:'🛩️',label:'驾驶舱',action:'cockpit-h5'}].forEach(b=>{
+    [{icon:'+',label:'新建笔记',action:'new',primary:true},{icon:E.search,label:'搜索',action:'search'},{icon:E.tag,label:'标签',action:'tag'},{icon:E.graph,label:'图谱',action:'graph'},{icon:E.bolt,label:'命令',action:'command'},{icon:'🤖',label:'Hermes',action:'hermes'},{icon:'🛩️',label:'驾驶舱',action:'cockpit-h5'},{icon:'📝',label:'工作日志',action:'work-log'}].forEach(b=>{
       const el=toolbar.createEl('button',{cls:PLUGIN_ID+'-toolbtn'+(b.primary?' primary':'')});
       el.createSpan({cls:PLUGIN_ID+'-icon',text:b.icon});
       el.createSpan({text:b.label});
@@ -1123,6 +1123,26 @@ class CockpitView extends obsidian.ItemView {
         new obsidian.Notice('🛩️ 驾驶舱正在启动…');
       } catch(e) {
         console.warn('Cockpit H5 launch failed', e);
+      }
+      return;
+    }
+    if (a === 'work-log') {
+      try {
+        const { exec } = require('child_process');
+        const pyBin = '/Library/Frameworks/Python.framework/Versions/3.13/bin/python3';
+        const scriptPath = require('path').join(__dirname, 'oaAtuoLogin_obsidian.py');
+        exec(pyBin + ' ' + scriptPath, (err, stdout, stderr) => {
+          if (err) {
+            console.warn('工作日志执行失败', err);
+            new obsidian.Notice('📝 工作日志执行失败: ' + err.message);
+            return;
+          }
+          if (stdout) console.log('[工作日志]', stdout);
+          if (stderr) console.warn('[工作日志 stderr]', stderr);
+          new obsidian.Notice('📝 工作日志已执行完毕');
+        });
+      } catch(e) {
+        console.warn('工作日志启动失败', e);
       }
       return;
     }

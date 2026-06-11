@@ -1,5 +1,5 @@
 class CockpitView extends obsidian.ItemView {
-  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._todos = []; this._refreshTimer = null; this._bookmarks = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._pomodoroTimer = null; this._username = '行'; }
+  constructor(leaf, plugin) { super(leaf); this._plugin = plugin; this._todos = []; this._refreshTimer = null; this._bookmarks = new Set(); this._recentEl = null; this._allFiles = []; this._focusMinutes = 0; this._pomodoroTimer = null; this._username = '行'; this._collapsed = {}; }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
   getIcon() { return 'layout-dashboard'; }
@@ -21,9 +21,10 @@ class CockpitView extends obsidian.ItemView {
     try {
       const pluginData = await this._plugin.loadData() || {};
       this._username = pluginData?.username || '行';
+      this._collapsed = pluginData?.collapsed || {};
       if (!pluginData.startDate) { pluginData.startDate = window.moment().format('YYYY-MM-DD'); await this._plugin.saveData(pluginData); }
       this._startDate = pluginData.startDate;
-    } catch(e) { this._username = '行'; this._startDate = window.moment().format('YYYY-MM-DD'); }
+    } catch(e) { this._username = '行'; this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; }
 
     // 加载今日专注时长
     const today = window.moment().format('YYYY-MM-DD');
@@ -115,6 +116,27 @@ class CockpitView extends obsidian.ItemView {
       const subs = root.querySelectorAll('.'+PLUGIN_ID+'-sub');
       if (subs.length > 0) subs[0].textContent = txt;
     };
+    // 折叠/展开工具
+    const makeCollapsible = (titleEl, contentEl, key, defaultCollapsed) => {
+      const arrow = titleEl.createSpan({ cls: PLUGIN_ID+'-collapse-arrow', text: '▼', attr:{ style:'margin-left:6px;font-size:0.7em;opacity:0.45;transition:transform 0.2s;display:inline-block;' } });
+      titleEl.style.cursor = 'pointer';
+      let collapsed = this._collapsed && this._collapsed[key];
+      if (collapsed === undefined) collapsed = defaultCollapsed || false;
+      const apply = () => {
+        contentEl.style.display = collapsed ? 'none' : '';
+        arrow.textContent = collapsed ? '▶' : '▼';
+      };
+      apply();
+      titleEl.addEventListener('click', (e) => {
+        if (e.target.closest('button,input,a,textarea,select')) return;
+        collapsed = !collapsed;
+        apply();
+        this._collapsed[key] = collapsed;
+        (async () => {
+          try { const d = await this._plugin.loadData() || {}; d.collapsed = { ...this._collapsed }; await this._plugin.saveData(d); } catch(ex) { console.warn('save collapsed', ex); }
+        })();
+      });
+    };
     let refreshTodosRef = null;
     let refreshCalendarRef = null;
 
@@ -127,7 +149,7 @@ class CockpitView extends obsidian.ItemView {
 
     // ===== 2. Toolbar =====
     const toolbar = root.createDiv({ cls: PLUGIN_ID+'-toolbar' });
-    [{icon:'+',label:'新建笔记',action:'new',primary:true},{icon:E.search,label:'搜索',action:'search'},{icon:E.tag,label:'标签',action:'tag'},{icon:E.graph,label:'图谱',action:'graph'},{icon:E.bolt,label:'命令',action:'command'},{icon:'🤖',label:'Hermes',action:'hermes'},{icon:'🛩️',label:'驾驶舱',action:'cockpit-h5'},{icon:'📝',label:'工作日志',action:'work-log'}].forEach(b=>{
+    [{icon:'+',label:'新建笔记',action:'new',primary:true},{icon:E.search,label:'搜索',action:'search'},{icon:E.tag,label:'标签',action:'tag'},{icon:E.graph,label:'图谱',action:'graph'},{icon:E.bolt,label:'命令',action:'command'},{icon:'🤖',label:'Hermes',action:'hermes'},{icon:'🛩️',label:'驾驶舱',action:'cockpit-h5'},{icon:'📝',label:'工作日志',action:'work-log'},{icon:'🍅',label:'番茄钟',action:'pomodoro'}].forEach(b=>{
       const el=toolbar.createEl('button',{cls:PLUGIN_ID+'-toolbtn'+(b.primary?' primary':'')});
       el.createSpan({cls:PLUGIN_ID+'-icon',text:b.icon});
       el.createSpan({text:b.label});
@@ -311,7 +333,7 @@ class CockpitView extends obsidian.ItemView {
     })();
 
     // ===== 3. Categories =====
-    root.createDiv({ cls: PLUGIN_ID+'-section-title', text: T.cats });
+    const catsTitle = root.createDiv({ cls: PLUGIN_ID+'-section-title', text: T.cats });
     const catsEl = root.createDiv({ cls: PLUGIN_ID+'-cats' });
     const allFolders = this.app.vault.getAllLoadedFiles()
       .filter(f=>f.children && f.path!=='' && f.path!=='/' && !f.path.includes('/') && !f.path.startsWith('.') && !f.path.startsWith('_') && f.path!=='Templates');
@@ -338,8 +360,10 @@ class CockpitView extends obsidian.ItemView {
 
   
 
+    makeCollapsible(catsTitle, catsEl, 'cats');
+
     // ===== 4. Stats（可动态更新）=====
-    root.createDiv({ cls: PLUGIN_ID+'-section-title', text: T.stats });
+    const statsTitle = root.createDiv({ cls: PLUGIN_ID+'-section-title', text: T.stats });
     const statsEl = root.createDiv({ cls: PLUGIN_ID+'-stats' });
     const noteCount = allFiles.filter(f=>f.basename!=='Home'&&f.basename!=='欢迎').length;
     const statConfig = [
@@ -381,13 +405,15 @@ class CockpitView extends obsidian.ItemView {
     };
     this._updateStatsRef = updateStats.bind(this);
     updateStats();
+    makeCollapsible(statsTitle, statsEl, 'stats');
 
     // ===== 5. TODOs =====
     const todoHeader = root.createDiv({ cls: PLUGIN_ID+'-todo-header' });
-    todoHeader.createDiv({ cls: PLUGIN_ID+'-section-title', text: T.todos });
+    const todoTitleEl = todoHeader.createDiv({ cls: PLUGIN_ID+'-section-title', text: T.todos });
     const addBtn = todoHeader.createEl('button', { cls: PLUGIN_ID+'-todo-add', text:'+', attr:{title:'新增待办'} });
     const refreshBtn = todoHeader.createEl('button', { cls: PLUGIN_ID+'-todo-add', text:'↻', attr:{title:'刷新待办'} });
-    const todosEl = root.createDiv({ cls: PLUGIN_ID+'-todos' });
+    const todoWrap = root.createDiv();
+    const todosEl = todoWrap.createDiv({ cls: PLUGIN_ID+'-todos' });
 
     // 状态筛选（全部/待办/已办）—— 放在 header 行右侧
     let currentStatus = 'todo';
@@ -435,7 +461,7 @@ class CockpitView extends obsidian.ItemView {
       if (!tabsWrap) {
         tabsWrap = document.createElement('div');
         tabsWrap.className = PLUGIN_ID+'-todo-tabs-wrap';
-        todoHeader.after(tabsWrap);
+        todoWrap.prepend(tabsWrap);
       }
       const allTags = getAllTags();
       renderTabs(allTags, tabsWrap);
@@ -616,6 +642,7 @@ class CockpitView extends obsidian.ItemView {
     };
 
     await renderTodos();
+    makeCollapsible(todoTitleEl, todoWrap, 'todos');
 
     // 新增待办（支持 #标签）
     addBtn.onclick = async ()=>{
@@ -650,7 +677,7 @@ class CockpitView extends obsidian.ItemView {
     };
 
     // ===== 6. Recent =====
-    root.createDiv({ cls: PLUGIN_ID+'-section-title', text: T.recent });
+    const recentTitle = root.createDiv({ cls: PLUGIN_ID+'-section-title', text: T.recent });
     this._recentEl = root.createDiv({ cls: PLUGIN_ID+'-recent' });
     this._allFiles = allFiles;
     this._allFiles.filter(f=>f.basename!=='Home').sort((a,b)=>b.stat.mtime-a.stat.mtime).slice(0,5).forEach(file=>{
@@ -675,6 +702,7 @@ class CockpitView extends obsidian.ItemView {
       link.onclick=e=>{e.preventDefault();this.app.workspace.getUnpinnedLeaf().setViewState({type:'markdown',state:{file:f.path}})};
       item.createDiv({ cls: PLUGIN_ID+'-recent-time', text: window.moment(file.stat.mtime).fromNow() });
     });
+    makeCollapsible(recentTitle, this._recentEl, 'recent');
 
     // ===== 6.5 收藏文件 =====
     if (this._bookmarks.size > 0) {
@@ -701,11 +729,12 @@ class CockpitView extends obsidian.ItemView {
     }
 
     // ===== 6.8 闪念胶囊 =====
-    root.createDiv({ cls: PLUGIN_ID+'-section-title', text: '⚡ 闪念胶囊' });
-    const flashWrap = root.createDiv({ cls: PLUGIN_ID+'-flash-row' });
+    const flashTitle = root.createDiv({ cls: PLUGIN_ID+'-section-title', text: '⚡ 闪念胶囊' });
+    const flashContent = root.createDiv();
+    const flashWrap = flashContent.createDiv({ cls: PLUGIN_ID+'-flash-row' });
     const flashInput = flashWrap.createEl('input', { cls: PLUGIN_ID+'-flash-input', attr:{placeholder:'随手记一条想法...', type:'text'} });
     const flashOk = flashWrap.createEl('button', { cls: PLUGIN_ID+'-todo-input-ok', text:'✓' });
-    const flashMsg = root.createDiv({ cls: PLUGIN_ID+'-flash-ok', attr:{style:'display:none'}, text:'✓ 已保存' });
+    const flashMsg = flashContent.createDiv({ cls: PLUGIN_ID+'-flash-ok', attr:{style:'display:none'}, text:'✓ 已保存' });
     const saveFlash = async ()=>{
       const v = flashInput.value.trim();
       if (!v) return;
@@ -731,6 +760,7 @@ class CockpitView extends obsidian.ItemView {
     };
     flashInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){e.preventDefault();saveFlash();} });
     flashOk.onclick = saveFlash;
+    makeCollapsible(flashTitle, flashContent, 'flash');
 
     // ===== 底部：编辑热力图 =====
     const hmTitle = root.createDiv({ cls: PLUGIN_ID+'-section-title', text: '📈 编辑热力图（近30天）' });
@@ -771,6 +801,7 @@ class CockpitView extends obsidian.ItemView {
       dot.style.background = c;
     });
     legend.createSpan({ cls: PLUGIN_ID+'-hm-legend-label', text: '多' });
+    makeCollapsible(hmTitle, heatmapEl, 'heatmap');
 
     root.createDiv({ cls: PLUGIN_ID+'-footer', text: E.save+' h 持续维护 · 知识库是活的' });
 
@@ -836,7 +867,6 @@ class CockpitView extends obsidian.ItemView {
     let isBreak = false;
     let pomodoroCount = 0;
     let timerInterval = null;
-    let minimized = false;
 
     // 拖拽
     let dragOffsetX = 0, dragOffsetY = 0, isDragging = false;
@@ -857,19 +887,8 @@ class CockpitView extends obsidian.ItemView {
     });
     document.addEventListener('mouseup', () => { isDragging = false; floatEl.style.transition = 'box-shadow 0.2s'; });
 
-    // 最小化
-    toggleBtn.onclick = () => {
-      minimized = !minimized;
-      body.style.display = minimized ? 'none' : 'block';
-      toggleBtn.textContent = minimized ? '+' : '−';
-      toggleBtn.title = minimized ? '展开' : '最小化';
-      floatEl.style.width = minimized ? '140px' : '180px';
-      if (minimized) {
-        titleSpan.textContent = '🍅 ' + fmtTime(remaining);
-      } else {
-        titleSpan.textContent = '🍅 番茄钟';
-      }
-    };
+    // 关闭
+    closeBtn.onclick = () => { clearInterval(timerInterval); floatEl.remove(); self._pomodoroTimer = null; };
 
     // 格式化时间
     function fmtTime(s) {
@@ -885,9 +904,6 @@ class CockpitView extends obsidian.ItemView {
       progFill.style.width = pct + '%';
       todayFocus.textContent = '今日专注: ' + (self._focusMinutes || 0) + ' min';
       countEl.textContent = '🍅 × ' + pomodoroCount;
-      if (minimized) {
-        titleSpan.textContent = '🍅 ' + fmtTime(remaining);
-      }
     }
 
     // 开始/暂停
@@ -1145,6 +1161,13 @@ class CockpitView extends obsidian.ItemView {
       } catch(e) {
         console.warn('工作日志启动失败', e);
       }
+      return;
+    }
+    if (a === 'pomodoro') {
+      try {
+        const existing = document.querySelector('.'+PLUGIN_ID+'-pomodoro');
+        if (!existing) this._buildPomodoro(this.containerEl);
+      } catch(e) { console.warn('Pomodoro failed', e); }
       return;
     }
     switch(a) {

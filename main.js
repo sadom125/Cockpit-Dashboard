@@ -369,7 +369,7 @@ function buildPomodoro(view, root) {
   const header = floatEl.createDiv({ cls: PID + '-pomo-header' });
   header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:linear-gradient(135deg,#f97316,#ef4444);cursor:move;user-select:none;';
   const titleSpan = header.createSpan({ text: '🍅 番茄钟', attr: { style: 'font-size:0.82em;font-weight:700;color:white;' } });
-  const toggleBtn = header.createSpan({ text: '−', attr: { style: 'font-size:1.1em;color:white;cursor:pointer;padding:0 4px;', title: '最小化' } });
+  const closeBtn = header.createSpan({ text: '×', attr: { style: 'font-size:1.2em;color:white;cursor:pointer;padding:0 4px;', title: '关闭番茄钟' } });
 
   const body = floatEl.createDiv({ cls: PID + '-pomo-body' });
   body.style.cssText = 'padding:12px;text-align:center;';
@@ -392,16 +392,15 @@ function buildPomodoro(view, root) {
   let isBreak = false;
   let pomodoroCount = 0;
   let timerInterval = null;
-  let minimized = false;
 
   // 拖拽
   let dragOffsetX = 0, dragOffsetY = 0, isDragging = false;
-  header.addEventListener('mousedown', (e) => { if (e.target === toggleBtn) return; isDragging = true; const rect = floatEl.getBoundingClientRect(); dragOffsetX = e.clientX - rect.left; dragOffsetY = e.clientY - rect.top; floatEl.style.transition = 'none'; });
+  header.addEventListener('mousedown', (e) => { if (e.target === closeBtn) return; isDragging = true; const rect = floatEl.getBoundingClientRect(); dragOffsetX = e.clientX - rect.left; dragOffsetY = e.clientY - rect.top; floatEl.style.transition = 'none'; });
   document.addEventListener('mousemove', (e) => { if (!isDragging) return; floatEl.style.left = (e.clientX - dragOffsetX) + 'px'; floatEl.style.top = (e.clientY - dragOffsetY) + 'px'; floatEl.style.right = 'auto'; floatEl.style.bottom = 'auto'; });
   document.addEventListener('mouseup', () => { isDragging = false; floatEl.style.transition = 'box-shadow 0.2s'; });
 
-  // 最小化
-  toggleBtn.onclick = () => { minimized = !minimized; body.style.display = minimized ? 'none' : 'block'; toggleBtn.textContent = minimized ? '+' : '−'; toggleBtn.title = minimized ? '展开' : '最小化'; floatEl.style.width = minimized ? '140px' : '180px'; titleSpan.textContent = minimized ? '🍅 ' + fmtTime(remaining) : '🍅 番茄钟'; };
+  // 关闭
+  closeBtn.onclick = () => { clearInterval(timerInterval); floatEl.remove(); self._pomodoroTimer = null; };
 
   function fmtTime(s) { const m = Math.floor(s / 60); const sec = s % 60; return String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0'); }
 
@@ -410,7 +409,6 @@ function buildPomodoro(view, root) {
     progFill.style.width = ((totalSeconds - remaining) / totalSeconds * 100) + '%';
     todayFocus.textContent = '今日专注: ' + (self._focusMinutes || 0) + ' min';
     countEl.textContent = '🍅 × ' + pomodoroCount;
-    if (minimized) titleSpan.textContent = '🍅 ' + fmtTime(remaining);
   }
 
   startBtn.onclick = () => {
@@ -456,6 +454,7 @@ class CockpitView extends obsidian.ItemView {
     this._allFiles = [];
     this._focusMinutes = 0;
     this._pomodoroTimer = null;
+    this._collapsed = {};
   }
   getViewType() { return VIEW_TYPE; }
   getDisplayText() { return 'Cockpit'; }
@@ -478,9 +477,10 @@ class CockpitView extends obsidian.ItemView {
     try {
       const pluginData = await this._plugin.loadData() || {};
       this._username = pluginData?.username || '行';
+      this._collapsed = pluginData?.collapsed || {};
       if (!pluginData.startDate) { pluginData.startDate = window.moment().format('YYYY-MM-DD'); await this._plugin.saveData(pluginData); }
       this._startDate = pluginData.startDate;
-    } catch(e) { this._username = '行'; this._startDate = window.moment().format('YYYY-MM-DD'); }
+    } catch(e) { this._username = '行'; this._startDate = window.moment().format('YYYY-MM-DD'); this._collapsed = {}; }
 
     // 加载今日专注时长
     const today = window.moment().format('YYYY-MM-DD');
@@ -569,6 +569,28 @@ class CockpitView extends obsidian.ItemView {
       if (subs.length > 0) subs[0].textContent = txt;
     };
 
+    // 折叠/展开工具
+    const makeCollapsible = (titleEl, contentEl, key, defaultCollapsed) => {
+      const arrow = titleEl.createSpan({ cls: PLUGIN_ID + '-collapse-arrow', text: '▼', attr: { style: 'margin-left:6px;font-size:0.7em;opacity:0.45;transition:transform 0.2s;display:inline-block;' } });
+      titleEl.style.cursor = 'pointer';
+      let collapsed = this._collapsed && this._collapsed[key];
+      if (collapsed === undefined) collapsed = defaultCollapsed || false;
+      const apply = () => {
+        contentEl.style.display = collapsed ? 'none' : '';
+        arrow.textContent = collapsed ? '▶' : '▼';
+      };
+      apply();
+      titleEl.addEventListener('click', (e) => {
+        if (e.target.closest('button,input,a,textarea,select')) return;
+        collapsed = !collapsed;
+        apply();
+        this._collapsed[key] = collapsed;
+        (async () => {
+          try { const d = await this._plugin.loadData() || {}; d.collapsed = { ...this._collapsed }; await this._plugin.saveData(d); } catch(ex) { console.warn('save collapsed', ex); }
+        })();
+      });
+    };
+
     let refreshTodosRef = null;
     let refreshCalendarRef = null;
 
@@ -588,7 +610,8 @@ class CockpitView extends obsidian.ItemView {
      { icon: E.bolt, label: '命令', action: 'command' },
      { icon: '🤖', label: 'Hermes', action: 'hermes' },
      { icon: '🛩️', label: '驾驶舱', action: 'cockpit-h5' },
-     { icon: '📝', label: '工作日志', action: 'work-log' }
+     { icon: '📝', label: '工作日志', action: 'work-log' },
+     { icon: '🍅', label: '番茄钟', action: 'pomodoro' }
     ].forEach(b => {
       const el = toolbar.createEl('button', { cls: PLUGIN_ID + '-toolbtn' + (b.primary ? ' primary' : '') });
       el.createSpan({ cls: PLUGIN_ID + '-icon', text: b.icon });
@@ -608,7 +631,7 @@ class CockpitView extends obsidian.ItemView {
     refreshCalendarRef = calRefresh;
 
     // 3. Categories
-    root.createDiv({ cls: PLUGIN_ID + '-section-title', text: T.cats });
+    const catsTitle = root.createDiv({ cls: PLUGIN_ID + '-section-title', text: T.cats });
     const catsEl = root.createDiv({ cls: PLUGIN_ID + '-cats' });
     const allFolders = this.app.vault.getAllLoadedFiles()
       .filter(f => f.children && f.path !== '' && f.path !== '/' && !f.path.includes('/') && !f.path.startsWith('.') && !f.path.startsWith('_') && f.path !== 'Templates');
@@ -629,9 +652,10 @@ class CockpitView extends obsidian.ItemView {
         if (overview) this.app.workspace.getUnpinnedLeaf().setViewState({ type: 'markdown', state: { file: overview.path } });
       };
     });
+    makeCollapsible(catsTitle, catsEl, 'cats');
 
     // 4. Stats
-    root.createDiv({ cls: PLUGIN_ID + '-section-title', text: T.stats });
+    const statsTitle = root.createDiv({ cls: PLUGIN_ID + '-section-title', text: T.stats });
     const statsEl = root.createDiv({ cls: PLUGIN_ID + '-stats' });
     const noteCount = allFiles.filter(f => f.basename !== 'Home' && f.basename !== '欢迎').length;
     const statConfig = [
@@ -671,13 +695,15 @@ class CockpitView extends obsidian.ItemView {
     };
     this._updateStatsRef = updateStats.bind(this);
     updateStats();
+    makeCollapsible(statsTitle, statsEl, 'stats');
 
     // 5. TODOs
     const todoHeader = root.createDiv({ cls: PLUGIN_ID + '-todo-header' });
-    todoHeader.createDiv({ cls: PLUGIN_ID + '-section-title', text: T.todos });
+    const todoTitleEl = todoHeader.createDiv({ cls: PLUGIN_ID + '-section-title', text: T.todos });
     const addBtn = todoHeader.createEl('button', { cls: PLUGIN_ID + '-todo-add', text: '+', attr: { title: '新增待办' } });
     const refreshBtn = todoHeader.createEl('button', { cls: PLUGIN_ID + '-todo-add', text: '↻', attr: { title: '刷新待办' } });
-    const todosEl = root.createDiv({ cls: PLUGIN_ID + '-todos' });
+    const todoWrap = root.createDiv();
+    const todosEl = todoWrap.createDiv({ cls: PLUGIN_ID + '-todos' });
 
     // 状态筛选
     let currentStatus = 'todo';
@@ -702,7 +728,7 @@ class CockpitView extends obsidian.ItemView {
       await saveTodos(this.app.vault, this._todos);
       updateStats();
       let tabsWrap = root.querySelector('.' + PLUGIN_ID + '-todo-tabs-wrap');
-      if (!tabsWrap) { tabsWrap = document.createElement('div'); tabsWrap.className = PLUGIN_ID + '-todo-tabs-wrap'; todoHeader.after(tabsWrap); }
+      if (!tabsWrap) { tabsWrap = document.createElement('div'); tabsWrap.className = PLUGIN_ID + '-todo-tabs-wrap'; todoWrap.prepend(tabsWrap); }
       renderTabs(getAllTags(), tabsWrap);
       const filtered = currentTag === 'all' ? this._todos : this._todos.filter(t => t.tags && t.tags.includes(currentTag.replace('tag:', '')));
       let sf = filtered;
@@ -767,9 +793,10 @@ class CockpitView extends obsidian.ItemView {
       okB.onclick = submit; cancelB.onclick = () => row.remove();
     };
     await renderTodos();
+    makeCollapsible(todoTitleEl, todoWrap, 'todos');
 
     // 6. Recent
-    root.createDiv({ cls: PLUGIN_ID + '-section-title', text: T.recent });
+    const recentTitle = root.createDiv({ cls: PLUGIN_ID + '-section-title', text: T.recent });
     this._recentEl = root.createDiv({ cls: PLUGIN_ID + '-recent' });
     this._allFiles = allFiles;
     allFiles.filter(f => f.basename !== 'Home').sort((a, b) => b.stat.mtime - a.stat.mtime).slice(0, 5).forEach(file => {
@@ -781,6 +808,7 @@ class CockpitView extends obsidian.ItemView {
       link.onclick = e => { e.preventDefault(); this.app.workspace.getUnpinnedLeaf().setViewState({ type: 'markdown', state: { file: file.path } }); };
       item.createDiv({ cls: PLUGIN_ID + '-recent-time', text: window.moment(file.stat.mtime).fromNow() });
     });
+    makeCollapsible(recentTitle, this._recentEl, 'recent');
 
     // 6.5 收藏文件
     if (this._bookmarks.size > 0) {
@@ -790,14 +818,16 @@ class CockpitView extends obsidian.ItemView {
     }
 
     // 6.8 闪念胶囊
-    root.createDiv({ cls: PLUGIN_ID + '-section-title', text: '⚡ 闪念胶囊' });
-    const flashWrap = root.createDiv({ cls: PLUGIN_ID + '-flash-row' });
+    const flashTitle = root.createDiv({ cls: PLUGIN_ID + '-section-title', text: '⚡ 闪念胶囊' });
+    const flashContent = root.createDiv();
+    const flashWrap = flashContent.createDiv({ cls: PLUGIN_ID + '-flash-row' });
     const flashInput = flashWrap.createEl('input', { cls: PLUGIN_ID + '-flash-input', attr: { placeholder: '随手记一条想法...', type: 'text' } });
     const flashOk = flashWrap.createEl('button', { cls: PLUGIN_ID + '-todo-input-ok', text: '✓' });
-    const flashMsg = root.createDiv({ cls: PLUGIN_ID + '-flash-ok', attr: { style: 'display:none' }, text: '✓ 已保存' });
+    const flashMsg = flashContent.createDiv({ cls: PLUGIN_ID + '-flash-ok', attr: { style: 'display:none' }, text: '✓ 已保存' });
     const saveFlash = async () => { const v = flashInput.value.trim(); if (!v) return; const td = window.moment().format('YYYY-MM-DD'); const ts = window.moment().format('HH:mm'); const fp = '_daily/' + td + '.md'; const prefix = '# ' + td + ' 闪念\n\n'; const line = '- [' + ts + '] ' + v + '\n'; try { const d = this.app.vault.getAbstractFileByPath('_daily'); if (!d) await this.app.vault.createFolder('_daily'); const ex = this.app.vault.getAbstractFileByPath(fp); if (ex) { const old = await this.app.vault.read(ex); await this.app.vault.modify(ex, old + line); } else await this.app.vault.create(fp, prefix + line); flashInput.value = ''; flashMsg.style.display = 'block'; setTimeout(() => { flashMsg.style.display = 'none'; }, 2000); } catch (e) { console.warn('flash save', e); } };
     flashInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveFlash(); } });
     flashOk.onclick = saveFlash;
+    makeCollapsible(flashTitle, flashContent, 'flash');
 
     // 热力图
     const hmTitle = root.createDiv({ cls: PLUGIN_ID + '-section-title', text: '📈 编辑热力图（近30天）' });
@@ -812,6 +842,7 @@ class CockpitView extends obsidian.ItemView {
     legend.createSpan({ cls: PLUGIN_ID + '-hm-legend-label', text: '少' });
     hmColors.forEach(c => { const d = legend.createDiv({ cls: PLUGIN_ID + '-hm-legend-cell' }); d.style.background = c; });
     legend.createSpan({ cls: PLUGIN_ID + '-hm-legend-label', text: '多' });
+    makeCollapsible(hmTitle, heatmapEl, 'heatmap');
 
     root.createDiv({ cls: PLUGIN_ID + '-footer', text: E.save + ' h 持续维护 · 知识库是活的' });
 
@@ -823,7 +854,7 @@ class CockpitView extends obsidian.ItemView {
 
   async _refreshBookmarkSection(root, allFiles) { let bt = null, be = null; root.querySelectorAll('.' + PLUGIN_ID + '-section-title').forEach(el => { if (el.textContent.includes('收藏文件')) bt = el; }); if (bt) be = bt.nextElementSibling; if (this._bookmarks.size === 0) { if (bt) bt.remove(); if (be) be.remove(); return; } if (!be || !be.classList.contains(PLUGIN_ID + '-recent')) { if (bt) bt.remove(); if (be) be.remove(); bt = root.createDiv({ cls: PLUGIN_ID + '-section-title', text: '⭐ 收藏文件' }); be = root.createDiv({ cls: PLUGIN_ID + '-recent' }); let rt = null; root.querySelectorAll('.' + PLUGIN_ID + '-section-title').forEach(el => { if (el.textContent.includes('最近更新')) rt = el; }); if (rt && rt.nextElementSibling) { rt.nextElementSibling.after(be); be.before(bt); } } be.innerHTML = ''; let hv = false; for (const path of this._bookmarks) { const f = allFiles.find(ff => ff.path === path); if (!f) { this._bookmarks.delete(path); continue; } hv = true; const item = be.createDiv({ cls: PLUGIN_ID + '-recent-item' }); const sb = item.createSpan({ cls: PLUGIN_ID + '-bookmark-btn starred', text: '★', attr: { title: '取消收藏' } }); sb.onclick = async (e) => { e.stopPropagation(); this._bookmarks.delete(path); await saveBookmarks(this.app.vault, this._bookmarks); await this._refreshBookmarkSection(root, allFiles); this._rebuildRecentStars(); }; const link = item.createEl('a', { cls: PLUGIN_ID + '-recent-link', text: f.basename, href: '#' }); link.onclick = e => { e.preventDefault(); this.app.workspace.getUnpinnedLeaf().setViewState({ type: 'markdown', state: { file: f.path } }); }; item.createDiv({ cls: PLUGIN_ID + '-recent-time', text: f.path }); } if (!hv) { bt.remove(); be.remove(); } }
 
-  _doAction(a) { if (a === 'hermes') { try { this.app.commands.executeCommandById('terminal:open-terminal.integrated.root'); const tryInject = () => { const tl = this.app.workspace.getLeavesOfType('terminal'); if (tl.length === 0) return false; const tv = tl[tl.length - 1]?.view; if (!tv) return false; let x = null; for (const k of Object.getOwnPropertyNames(tv)) { const v = tv[k]; if (v && v._core && v._core._coreService) { x = v; break; } } if (!x && tv._children) { for (const c of tv._children) { if (c._core && c._core._coreService) { x = c; break; } if (c._children) { for (const c2 of c._children) { if (c2._core && c2._core._coreService) { x = c2; break; } } } for (const k of Object.getOwnPropertyNames(c)) { const v = c[k]; if (v && v._core && v._core._coreService) { x = v; break; } } } } if (x) { x.write('hermes --tui\r'); return true; } return false; }; let attempts = 0; const timer = setInterval(() => { attempts++; if (tryInject() || attempts > 30) clearInterval(timer); }, 300); } catch (e) { console.warn('Hermes failed', e); } return; } if (a === 'cockpit-h5') { try { const { exec } = require('child_process'); const homedir = require('os').homedir(); const nodeBin = homedir + '/.local/bin/node'; const serverDir = require('path').join(homedir, 'Downloads', 'cockpit'); exec('cd ' + serverDir + ' && ' + nodeBin + ' server.js', (err) => { if (err && !err.message.includes('EADDRINUSE')) { console.warn('Cockpit H5 启动失败', err); new obsidian.Notice('🛩️ 驾驶舱启动失败: ' + err.message); return; } }); setTimeout(() => { exec('open http://localhost:3456'); }, 1000); new obsidian.Notice('🛩️ 驾驶舱正在启动…'); } catch (e) { console.warn('Cockpit H5 launch failed', e); } return; } if (a === 'work-log') { try { const { exec } = require('child_process'); const pyBin = '/Library/Frameworks/Python.framework/Versions/3.13/bin/python3'; const vaultBase = this.app.vault.adapter.getBasePath(); const scriptPath = require('path').join(vaultBase, '.obsidian', 'plugins', 'cockpit-dashboard', 'oaAtuoLogin_obsidian.py'); exec(pyBin + ' "' + scriptPath + '"', (err, stdout, stderr) => { if (err) { console.warn('工作日志执行失败', err); new obsidian.Notice('📝 工作日志执行失败: ' + err.message); return; } if (stdout) console.log('[工作日志]', stdout); if (stderr) console.warn('[工作日志 stderr]', stderr); new obsidian.Notice('📝 工作日志已执行完毕'); }); } catch (e) { console.warn('工作日志启动失败', e); } return; } switch (a) { case 'new': this.app.commands.executeCommandById('file-explorer:new-file'); break; case 'search': break; case 'tag': this.app.workspace.rightSplit.expand(); break; case 'graph': this.app.commands.executeCommandById('graph:open'); break; case 'command': this.app.commands.executeCommandById('command-palette:open'); break; } }
+  _doAction(a) { if (a === 'hermes') { try { this.app.commands.executeCommandById('terminal:open-terminal.integrated.root'); const tryInject = () => { const tl = this.app.workspace.getLeavesOfType('terminal'); if (tl.length === 0) return false; const tv = tl[tl.length - 1]?.view; if (!tv) return false; let x = null; for (const k of Object.getOwnPropertyNames(tv)) { const v = tv[k]; if (v && v._core && v._core._coreService) { x = v; break; } } if (!x && tv._children) { for (const c of tv._children) { if (c._core && c._core._coreService) { x = c; break; } if (c._children) { for (const c2 of c._children) { if (c2._core && c2._core._coreService) { x = c2; break; } } } for (const k of Object.getOwnPropertyNames(c)) { const v = c[k]; if (v && v._core && v._core._coreService) { x = v; break; } } } } if (x) { x.write('hermes --tui\r'); return true; } return false; }; let attempts = 0; const timer = setInterval(() => { attempts++; if (tryInject() || attempts > 30) clearInterval(timer); }, 300); } catch (e) { console.warn('Hermes failed', e); } return; } if (a === 'cockpit-h5') { try { const { exec } = require('child_process'); const homedir = require('os').homedir(); const nodeBin = homedir + '/.local/bin/node'; const serverDir = require('path').join(homedir, 'Downloads', 'cockpit'); exec('cd ' + serverDir + ' && ' + nodeBin + ' server.js', (err) => { if (err && !err.message.includes('EADDRINUSE')) { console.warn('Cockpit H5 启动失败', err); new obsidian.Notice('🛩️ 驾驶舱启动失败: ' + err.message); return; } }); setTimeout(() => { exec('open http://localhost:3456'); }, 1000); new obsidian.Notice('🛩️ 驾驶舱正在启动…'); } catch (e) { console.warn('Cockpit H5 launch failed', e); } return; } if (a === 'work-log') { try { const { exec } = require('child_process'); const pyBin = '/Library/Frameworks/Python.framework/Versions/3.13/bin/python3'; const vaultBase = this.app.vault.adapter.getBasePath(); const scriptPath = require('path').join(vaultBase, '.obsidian', 'plugins', 'cockpit-dashboard', 'oaAtuoLogin_obsidian.py'); exec(pyBin + ' "' + scriptPath + '"', (err, stdout, stderr) => { if (err) { console.warn('工作日志执行失败', err); new obsidian.Notice('📝 工作日志执行失败: ' + err.message); return; } if (stdout) console.log('[工作日志]', stdout); if (stderr) console.warn('[工作日志 stderr]', stderr); new obsidian.Notice('📝 工作日志已执行完毕'); }); } catch (e) { console.warn('工作日志启动失败', e); } return; } if (a === 'pomodoro') { try { const existing = document.querySelector('.' + PLUGIN_ID + '-pomodoro'); if (!existing) buildPomodoro(this, this.containerEl); } catch(e) { console.warn('Pomodoro failed', e); } return; } switch (a) { case 'new': this.app.commands.executeCommandById('file-explorer:new-file'); break; case 'search': break; case 'tag': this.app.workspace.rightSplit.expand(); break; case 'graph': this.app.commands.executeCommandById('graph:open'); break; case 'command': this.app.commands.executeCommandById('command-palette:open'); break; } }
 
   async onClose() { if (this._refreshTimer) { clearInterval(this._refreshTimer); this._refreshTimer = null; } this._pomodoroTimer = null; }
 }

@@ -17,7 +17,7 @@ function buildPomodoro(view, root) {
   const header = floatEl.createDiv({ cls: PID + '-pomo-header' });
   header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:linear-gradient(135deg,#f97316,#ef4444);cursor:move;user-select:none;';
   const titleSpan = header.createSpan({ text: '🍅 番茄钟', attr: { style: 'font-size:0.82em;font-weight:700;color:white;' } });
-  const toggleBtn = header.createSpan({ text: '−', attr: { style: 'font-size:1.1em;color:white;cursor:pointer;padding:0 4px;', title: '最小化' } });
+  const closeBtn = header.createSpan({ text: '×', attr: { style: 'font-size:1.2em;color:white;cursor:pointer;padding:0 4px;', title: '关闭番茄钟' } });
 
   const body = floatEl.createDiv({ cls: PID + '-pomo-body' });
   body.style.cssText = 'padding:12px;text-align:center;';
@@ -40,16 +40,15 @@ function buildPomodoro(view, root) {
   let isBreak = false;
   let pomodoroCount = 0;
   let timerInterval = null;
-  let minimized = false;
 
   // 拖拽
   let dragOffsetX = 0, dragOffsetY = 0, isDragging = false;
-  header.addEventListener('mousedown', (e) => { if (e.target === toggleBtn) return; isDragging = true; const rect = floatEl.getBoundingClientRect(); dragOffsetX = e.clientX - rect.left; dragOffsetY = e.clientY - rect.top; floatEl.style.transition = 'none'; });
+  header.addEventListener('mousedown', (e) => { if (e.target === closeBtn) return; isDragging = true; const rect = floatEl.getBoundingClientRect(); dragOffsetX = e.clientX - rect.left; dragOffsetY = e.clientY - rect.top; floatEl.style.transition = 'none'; });
   document.addEventListener('mousemove', (e) => { if (!isDragging) return; floatEl.style.left = (e.clientX - dragOffsetX) + 'px'; floatEl.style.top = (e.clientY - dragOffsetY) + 'px'; floatEl.style.right = 'auto'; floatEl.style.bottom = 'auto'; });
   document.addEventListener('mouseup', () => { isDragging = false; floatEl.style.transition = 'box-shadow 0.2s'; });
 
-  // 最小化
-  toggleBtn.onclick = () => { minimized = !minimized; body.style.display = minimized ? 'none' : 'block'; toggleBtn.textContent = minimized ? '+' : '−'; toggleBtn.title = minimized ? '展开' : '最小化'; floatEl.style.width = minimized ? '140px' : '180px'; titleSpan.textContent = minimized ? '🍅 ' + fmtTime(remaining) : '🍅 番茄钟'; };
+  // 关闭
+  closeBtn.onclick = () => { clearInterval(timerInterval); floatEl.remove(); self._pomodoroTimer = null; };
 
   function fmtTime(s) { const m = Math.floor(s / 60); const sec = s % 60; return String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0'); }
 
@@ -58,7 +57,6 @@ function buildPomodoro(view, root) {
     progFill.style.width = ((totalSeconds - remaining) / totalSeconds * 100) + '%';
     todayFocus.textContent = '今日专注: ' + (self._focusMinutes || 0) + ' min';
     countEl.textContent = '🍅 × ' + pomodoroCount;
-    if (minimized) titleSpan.textContent = '🍅 ' + fmtTime(remaining);
   }
 
   startBtn.onclick = () => {

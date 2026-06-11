@@ -1,5 +1,5 @@
-// styles.css — Cockpit Dashboard v2 (美化版)
-// 注意：所有 ${PLUGIN_ID} 已替换为具体的 cockpit-dashboard
+/* styles.css — Cockpit Dashboard v2 */
+/* Note: ${PLUGIN_ID} has been replaced with cockpit-dashboard */
 
 :root {
   --cockpit-accent: #48b4ff;

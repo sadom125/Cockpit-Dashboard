@@ -867,11 +867,18 @@ class CockpitView extends obsidian.ItemView {
     let isBreak = false;
     let pomodoroCount = 0;
     let timerInterval = null;
+    let minimized = false;
+
+    // 最小化
+    toggleBtn.onclick = () => { minimized = !minimized; body.style.display = minimized ? 'none' : 'block'; toggleBtn.textContent = minimized ? '+' : '−'; toggleBtn.title = minimized ? '展开' : '最小化'; floatEl.style.width = minimized ? '140px' : '180px'; titleSpan.textContent = minimized ? '🍅 ' + fmtTime(remaining) : '🍅 番茄钟'; };
+
+    // 关闭
+    closeBtn.onclick = () => { clearInterval(timerInterval); floatEl.remove(); self._pomodoroTimer = null; };
 
     // 拖拽
     let dragOffsetX = 0, dragOffsetY = 0, isDragging = false;
     header.addEventListener('mousedown', (e) => {
-      if (e.target === toggleBtn) return;
+      if (e.target === toggleBtn || e.target === closeBtn || e.target.parentElement === btnGroup) return;
       isDragging = true;
       const rect = floatEl.getBoundingClientRect();
       dragOffsetX = e.clientX - rect.left;
@@ -886,10 +893,6 @@ class CockpitView extends obsidian.ItemView {
       floatEl.style.bottom = 'auto';
     });
     document.addEventListener('mouseup', () => { isDragging = false; floatEl.style.transition = 'box-shadow 0.2s'; });
-
-    // 关闭
-    closeBtn.onclick = () => { clearInterval(timerInterval); floatEl.remove(); self._pomodoroTimer = null; };
-
     // 格式化时间
     function fmtTime(s) {
       const m = Math.floor(s / 60);
@@ -904,6 +907,7 @@ class CockpitView extends obsidian.ItemView {
       progFill.style.width = pct + '%';
       todayFocus.textContent = '今日专注: ' + (self._focusMinutes || 0) + ' min';
       countEl.textContent = '🍅 × ' + pomodoroCount;
+      if (minimized) titleSpan.textContent = '🍅 ' + fmtTime(remaining);
     }
 
     // 开始/暂停

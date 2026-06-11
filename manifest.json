@@ -1,7 +1,7 @@
 {
   "id": "cockpit-dashboard",
   "name": "Cockpit Dashboard",
-  "version": "v1.0.1",
+  "version": "1.0.1",
   "minAppVersion": "0.15.0",
   "description": "知识库驾驶舱仪表盘",
   "author": "hang",

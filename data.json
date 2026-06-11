@@ -1,18 +1,6 @@
 {
-  "username": "行",
+  "username": "h",
   "cockpit-todos": [
-    {
-      "text": "完善 Dashboard 驾驶舱功能",
-      "done": false
-    },
-    {
-      "text": "整理 gbrain 代码片段分类",
-      "done": false
-    },
-    {
-      "text": "Gateway 配置文档补充",
-      "done": false
-    },
     {
       "text": "Obsidian vault 创建和分类",
       "done": true

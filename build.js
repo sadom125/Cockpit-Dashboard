@@ -129,13 +129,13 @@ class CockpitView extends obsidian.ItemView {
         cfgContent = await this.app.vault.read(cfgFile);
       }
       // 解析配置：按 [section] 分组提取 key=value
-      const sections = cfgContent.split(/^\[(.+?)\]/m);
+      const sections = cfgContent.split(/^\\[(.+?)\\]/m);
       for (let i = 1; i < sections.length; i += 2) {
         const name = sections[i].trim();
         const body = sections[i + 1] || '';
         const cmds = {};
         body.split('\\n').forEach(line => {
-          const m = line.match(/^\s*(\S+)\s*=\s*(.*)/);
+          const m = line.match(/^\\s*(\\S+)\\s*=\\s*(.*)/);
           if (m) cmds[m[1]] = m[2].trim();
         });
         this._toolbarCmds[name] = cmds;

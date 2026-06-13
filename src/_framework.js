@@ -61,7 +61,7 @@ class CockpitView extends obsidian.ItemView {
         const name = sections[i].trim();
         const body = sections[i + 1] || '';
         const cmds = {};
-        body.split('\\n').forEach(line => {
+        body.split('\n').forEach(line => {
           const m = line.match(/^\s*(\S+)\s*=\s*(.*)/);
           if (m) cmds[m[1]] = m[2].trim();
         });
